@@ -21,14 +21,14 @@
   h2{font-size:1.1rem;margin:0 0 .75rem}
   p.sub{color:var(--muted);margin:0 0 1rem;font-size:.95rem}
   .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:16px}
-  .index{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .index{display:flex;align-items:flex-end;gap:32px;flex-wrap:wrap}
   .index .num{font-size:2.8rem;font-weight:bold;color:var(--green);line-height:1}
   .index .txt{color:var(--muted);font-size:.9rem}
   form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
   label{display:flex;flex-direction:column;font-size:.85rem;color:var(--muted);gap:4px}
-  input{font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);
+  input,select{font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);
     border-radius:6px;padding:8px;width:100%;min-height:40px}
-  input:focus-visible,button:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--green);outline-offset:2px}
   .wide{grid-column:1/-1}
   .preview{grid-column:1/-1;background:var(--green-soft);border-radius:6px;padding:10px 12px;
     display:flex;gap:24px;flex-wrap:wrap;font-size:.95rem}
@@ -47,6 +47,17 @@
   td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   tr.best td{background:var(--green-soft)}
   td button{padding:2px 8px;min-height:28px;font-size:.8rem}
+  [hidden]{display:none!important}
+  .tabs{display:flex;gap:8px;margin-bottom:16px}
+  .tabs button{flex:1;background:transparent;color:var(--green)}
+  .tabs button[aria-selected="true"]{background:var(--green);color:#fff}
+  @media (prefers-color-scheme: dark){ .tabs button[aria-selected="true"]{color:#10201a} }
+  .tag{display:inline-block;border-radius:4px;padding:1px 7px;font-size:.78rem;margin-right:4px}
+  .tag.in{background:var(--green);color:#fff}
+  .tag.out{border:1px solid var(--warn);color:var(--warn)}
+  @media (prefers-color-scheme: dark){ .tag.in{color:#10201a} }
+  .box{background:var(--green-soft);border-radius:6px;padding:10px 12px;margin:0 0 12px;font-size:.95rem}
+  tr.old td{border-top:2px solid var(--warn)}
   .empty{color:var(--muted);padding:16px;text-align:center}
   .note{color:var(--muted);font-size:.85rem;margin-top:8px}
   @media (prefers-reduced-motion: no-preference){ button{transition:opacity .15s} button:hover{opacity:.85} }
@@ -58,25 +69,40 @@
 
 <section class="card" aria-live="polite">
   <div class="index">
-    <span class="num" id="idx">–</span>
-    <span class="txt" id="idxTxt">Añade al menos 3 vueltas para calcular el índice.</span>
+    <div><div class="txt">HCP</div><span class="num" id="idxN">–</span><div class="txt" id="idxNTxt"></div></div>
+    <div><div class="txt">HCP SACE</div><span class="num" id="idxS">–</span><div class="txt" id="idxSTxt"></div></div>
   </div>
 </section>
 
+<div class="tabs" role="tablist">
+  <button type="button" role="tab" data-tab="vueltas" aria-selected="true">Vueltas</button>
+  <button type="button" role="tab" data-tab="hcp" aria-selected="false">HCP</button>
+  <button type="button" role="tab" data-tab="sace" aria-selected="false">SACE</button>
+</div>
+
+<div id="v-vueltas">
 <section class="card">
   <h2>Nueva vuelta</h2>
   <form id="f" autocomplete="off">
     <label>Federación <input name="federacion" value="RFEG" required></label>
     <label>Fecha <input name="fecha" type="date" required></label>
     <label class="wide">Torneo <input name="torneo" required></label>
-    <label>Neto HCP <input name="neto" type="number" step="0.1" inputmode="decimal" required></label>
-    <label>Bruto <input name="bruto" type="number" step="1" inputmode="numeric" required></label>
+    <label class="wide">Campo <input name="campo"></label>
+    <label>Neto HCP (golpes) <input name="neto" type="number" step="1" inputmode="numeric" required></label>
+    <label>Bruto (golpes) <input name="bruto" type="number" step="1" inputmode="numeric" required></label>
     <label>Valor Campo <input name="cr" type="number" step="0.1" inputmode="decimal" required></label>
     <label>Slope <input name="slope" type="number" step="1" min="55" max="155" inputmode="numeric" required></label>
-    <label>ASC <input name="asc" type="number" step="1" inputmode="numeric" required></label>
-    <div class="preview" id="preview">Completa Bruto, Valor Campo, Slope y ASC para ver el cálculo.</div>
+    <label>ASC <input name="asc" type="number" step="1" inputmode="numeric"></label>
+    <label>Diferencial
+      <select name="dif"><option value="70">70</option><option value="72" selected>72</option><option value="74">74</option></select>
+    </label>
+    <label>¿Cuenta para SACE?
+      <select name="cuenta"><option value="si">Sí</option><option value="no">No</option></select>
+    </label>
+    <div class="preview" id="preview">Completa Neto, Bruto, Valor Campo y Slope para ver el cálculo.</div>
     <div class="msg" id="msg" role="alert"></div>
-    <div class="actions"><button class="primary" type="submit">Guardar vuelta</button></div>
+    <div class="actions"><button class="primary" id="saveBtn" type="submit">Guardar vuelta</button>
+      <button class="ghost" id="cancelBtn" type="button" hidden>Cancelar edición</button></div>
   </form>
 </section>
 
@@ -85,9 +111,9 @@
   <div class="tablewrap">
     <table>
       <thead><tr>
-        <th>Federacion</th><th>MES</th><th>Año</th><th>Fecha</th><th>Torneo</th>
+        <th>Federacion</th><th>MES</th><th>Año</th><th>Fecha</th><th>Torneo</th><th>Campo</th>
         <th class="n">Neto HCP</th><th class="n">Bruto</th><th class="n">Valor Campo</th>
-        <th class="n">Slope</th><th class="n">ASC</th><th class="n">HCP Bruto</th><th class="n">sace</th><th></th>
+        <th class="n">Slope</th><th class="n">ASC</th><th class="n">Diferencial</th><th class="n">HCP Bruto</th><th class="n">HCP Neto</th><th class="n">sace</th><th>Cuenta SACE</th><th></th>
       </tr></thead>
       <tbody id="rows"></tbody>
     </table>
@@ -98,21 +124,30 @@
     <button class="danger" id="clr" type="button">Borrar todo</button>
     <input id="file" type="file" accept=".csv,text/csv" hidden>
   </div>
-  <p class="note">Los datos se guardan en este navegador. Exporta el CSV para tener copia de seguridad o usarlo en otro dispositivo.
-  Las 8 mejores de las últimas 20 vueltas (por SACE) aparecen sombreadas.</p>
+  <p class="note">Los datos se guardan en este navegador. Exporta el CSV para tener copia de seguridad o usarlo en otro dispositivo. Sombreadas: las vueltas que cuentan para el HCP SACE.</p>
 </section>
 
-<script>
-/* ============ FÓRMULAS (edítalas aquí si tu federación usa otras) ============
-   Diferencial = (113 / Slope) * (Resultado - Valor Campo)
-   HCP Bruto   = diferencial calculado con el Bruto
-   SACE        = diferencial calculado con el ASC (resultado ajustado)
-   Índice      = media de los mejores SACE de las últimas 20 vueltas (tabla WHS)
-=============================================================================== */
-const diff = (score, cr, slope) => (113 / slope) * (score - cr);
-const r1 = x => Math.round(x * 10) / 10;
-const calc = v => ({ hcpBruto: r1(diff(v.bruto, v.cr, v.slope)), sace: r1(diff(v.asc, v.cr, v.slope)) });
+</div>
 
+<div id="v-hcp" hidden><section class="card"><h2>HCP: últimas 20 vueltas</h2><div id="hcpView"></div></section></div>
+<div id="v-sace" hidden><section class="card"><h2>SACE: últimas 20 vueltas</h2><div id="saceView"></div></section></div>
+
+<script>
+/* ============ FÓRMULAS (iguales a las de tu Excel) ============
+   HCP Bruto = (Bruto - Valor Campo - ASC) * 113 / Slope        (celda Q del Excel)
+   HCP Neto  = (Neto  - Valor Campo - ASC) * 113 / Slope        (columna "HCP Real")
+   SACE      = Diferencial (CAT) + HCP Bruto   (solo si hay CAT)  <- pendiente de confirmar con tu hoja
+   HCP / HCP Bruto = media de las 8 mejores de las últimas 20 vueltas
+=============================================================== */
+const r1 = x => Math.round(x * 10) / 10;
+function calc(v){
+  const asc = Number.isFinite(v.asc) ? v.asc : 0;
+  const k = 113 / v.slope;
+  const hcpBruto = (v.bruto - v.cr - asc) * k;
+  const hcpNeto = Number.isFinite(v.neto) ? (v.neto - v.cr - asc) * k : null;
+  const sace = v.cuenta && Number.isFinite(v.dif) ? v.dif + hcpBruto : null;
+  return { hcpBruto, hcpNeto, sace };   // sin redondear; se redondea a 1 decimal solo al mostrar
+}
 // [mejores a contar, ajuste] según nº de vueltas disponibles
 function whsRule(n){
   if(n<3) return null;
@@ -121,125 +156,279 @@ function whsRule(n){
   if(n<=14) return [4,0];  if(n<=16) return [5,0]; if(n<=18) return [6,0];
   if(n===19) return [7,0]; return [8,0];
 }
+function calcIndex(sorted, key){
+  const last = sorted.filter(r => r[key] != null).slice(-20);
+  const rule = whsRule(last.length);
+  if(!rule) return { index:null, n:last.length, set:new Set() };
+  const best = [...last].sort((a,b) => a[key]-b[key]).slice(0, rule[0]);
+  const raw = best.reduce((t,r)=>t+r[key],0)/best.length + rule[1];
+  return { index: r1(raw), raw, n:last.length, k:rule[0], adj:rule[1], set:new Set(best) };
+}
 
 const KEY = 'golf-handicap-v1';
-const COLS = ['Federacion','MES','Año','Fecha','Torneo','Neto HCP','Bruto','Valor Campo','Slope','ASC','HCP Bruto','sace'];
+const COLS = ['Federacion','MES','Año','Fecha','Torneo','Campo','Neto HCP','Bruto','Valor Campo','Slope','ASC','Diferencial','HCP Bruto','HCP Neto','sace','Cuenta SACE'];
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 let rounds = [];
 
-function load(){ try{ rounds = JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ rounds = []; } }
+function load(){ try{ rounds = JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ rounds = []; }
+  rounds.forEach(r => {
+    r.cuenta = r.cuenta !== false;
+    const c = calc(r); r.hcpBruto = c.hcpBruto; r.hcpNeto = c.hcpNeto;   // recalcula con la fórmula actual
+    if(Number.isFinite(r.dif) || !r.cuenta) r.sace = c.sace;
+  }); }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(rounds)); }catch(e){ showMsg('No se pudo guardar en este navegador. Exporta el CSV.'); } }
 function showMsg(t){ document.getElementById('msg').textContent = t || ''; }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDate = iso => iso ? iso.split('-').reverse().join('/') : '';
 const num = x => (x === '' || x == null) ? NaN : Number(String(x).replace(',', '.'));
 const fmtN = x => String(x).replace('.', ',');
+const f1 = x => fmtN(Math.round(x * 10) / 10);
+const f3 = x => fmtN(x.toFixed(3));   // SACE con 3 decimales
+const cell = x => (x == null || (typeof x === 'number' && !Number.isFinite(x))) ? '–' : f1(x);
+
+function showIdx(res, numId, txtId, dec){
+  document.getElementById(numId).textContent = res.index === null ? '–' : (dec === 3 ? f3(res.raw) : fmtN(res.index));
+  document.getElementById(txtId).textContent = res.index === null
+    ? 'Necesitas al menos 3 vueltas.'
+    : `${res.k} mejores de ${res.n} vueltas${res.adj ? ` (ajuste ${res.adj})` : ''}.`;
+}
+
+function renderView(key, id, colName, dec){
+  const fx = dec === 3 ? f3 : f1;
+  const sorted = [...rounds].sort((a,b) => a.fecha.localeCompare(b.fecha));
+  const last = sorted.filter(r => r[key] != null).slice(-20);
+  const el = document.getElementById(id);
+  if(!last.length){ el.innerHTML = '<p class="empty">Aún no hay vueltas para esta vista.</p>'; return; }
+  const res = calcIndex(sorted, key);
+  const rank = new Map([...res.set].sort((a,b) => a[key]-b[key]).map((r,i) => [r, i+1]));
+  const full = last.length === 20;
+  const rows = [...last].reverse().map((r,i) => `<tr class="${rank.has(r) ? 'best' : ''}${i===last.length-1 && full ? ' old' : ''}">
+    <td class="n">${i+1}</td><td>${fmtDate(r.fecha)}</td><td>${esc(r.torneo)}</td><td class="n"><b>${fx(r[key])}</b></td>
+    <td>${rank.has(r) ? `<span class="tag in">Cuenta · ${rank.get(r)}ª mejor</span>` : ''}${i===last.length-1 && full ? '<span class="tag out">Sale la próxima</span>' : ''}</td></tr>`).join('');
+
+  let head = res.index === null
+    ? `Hay ${last.length} vuelta${last.length===1?'':'s'}: hacen falta al menos 3 para calcular.`
+    : `<b>${colName}: ${fx(res.raw)}</b> · media de las ${res.k} mejores de ${res.n}${res.adj ? ` (ajuste ${res.adj})` : ''}.`;
+
+  let next;
+  const rem = full ? last.slice(1) : last;
+  const k = (whsRule(Math.min(last.length+1, 20)) || [0])[0];
+  if(!full) next = `Aún no hay 20 vueltas: al añadir una nueva no sale ninguna.`;
+  else {
+    const o = last[0];
+    next = rank.has(o)
+      ? `Al añadir una nueva sale <b>${fmtDate(o.fecha)} ${esc(o.torneo)}</b> (${fx(o[key])}), que <b>SÍ cuenta</b>: el índice cambiará aunque la nueva no entre en las mejores.`
+      : `Al añadir una nueva sale <b>${fmtDate(o.fecha)} ${esc(o.torneo)}</b> (${fx(o[key])}), que <b>no cuenta</b>: no afecta salvo que la nueva entre en las mejores.`;
+  }
+  let thr = '';
+  if(k){
+    const asc = [...rem].sort((a,b) => a[key]-b[key]);
+    thr = asc.length < k ? ' Una vuelta nueva entra siempre en la media.'
+      : ` Una vuelta nueva entra en la media si su valor es menor que <b>${fx(asc[k-1][key])}</b>.`;
+  }
+  el.innerHTML = `<div class="box">${head}</div>
+    <div class="box">${next}${thr}</div>
+    <div class="tablewrap"><table><thead><tr><th class="n">#</th><th>Fecha</th><th>Torneo</th><th class="n">${colName}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note">Orden de más nuevo a más antiguo: la 1 es la más reciente y la última es la que sale. Las sombreadas son las que hacen la media.</p>`;
+}
 
 function render(){
   const sorted = [...rounds].sort((a,b) => a.fecha.localeCompare(b.fecha));
-  const last20 = sorted.slice(-20);
-  const rule = whsRule(last20.length);
-  let bestSet = new Set(), index = null;
-  if(rule){
-    const best = [...last20].map((r,i)=>({i,s:r.sace})).sort((a,b)=>a.s-b.s).slice(0, rule[0]);
-    best.forEach(b => bestSet.add(last20[b.i]));
-    index = r1(best.reduce((t,b)=>t+b.s,0)/best.length + rule[1]);
-  }
-  document.getElementById('idx').textContent = index === null ? '–' : fmtN(index);
-  document.getElementById('idxTxt').textContent = rule
-    ? `Índice calculado con los ${rule[0]} mejores SACE de ${last20.length} vueltas${rule[1] ? ` (ajuste ${rule[1]})` : ''}.`
-    : 'Añade al menos 3 vueltas para calcular el índice.';
-
+  const N = calcIndex(sorted, 'hcpNeto'), S = calcIndex(sorted, 'sace');
+  showIdx(N, 'idxN', 'idxNTxt'); showIdx(S, 'idxS', 'idxSTxt', 3);
+  renderView('hcpNeto', 'hcpView', 'HCP Neto'); renderView('sace', 'saceView', 'SACE', 3);
   const tb = document.getElementById('rows');
-  if(!sorted.length){ tb.innerHTML = '<tr><td colspan="13" class="empty">Aún no hay vueltas. Guarda la primera con el formulario.</td></tr>'; return; }
+  if(!sorted.length){ tb.innerHTML = '<tr><td colspan="17" class="empty">Aún no hay vueltas. Guarda la primera con el formulario.</td></tr>'; return; }
   tb.innerHTML = [...sorted].reverse().map(r => `
-    <tr class="${bestSet.has(r) ? 'best' : ''}">
+    <tr class="${S.set.has(r) ? 'best' : ''}">
       <td>${esc(r.federacion)}</td><td>${MESES[+r.fecha.slice(5,7)-1]}</td><td>${r.fecha.slice(0,4)}</td>
-      <td>${fmtDate(r.fecha)}</td><td>${esc(r.torneo)}</td>
-      <td class="n">${fmtN(r.neto)}</td><td class="n">${r.bruto}</td><td class="n">${fmtN(r.cr)}</td>
-      <td class="n">${r.slope}</td><td class="n">${r.asc}</td>
-      <td class="n"><b>${fmtN(r.hcpBruto)}</b></td><td class="n"><b>${fmtN(r.sace)}</b></td>
-      <td><button class="danger" data-del="${r.id}" type="button" aria-label="Borrar vuelta ${esc(r.torneo)}">Borrar</button></td>
+      <td>${fmtDate(r.fecha)}</td><td>${esc(r.torneo)}</td><td>${esc(r.campo || '')}</td>
+      <td class="n">${r.neto == null ? '–' : r.neto}</td><td class="n">${r.bruto}</td><td class="n">${fmtN(r.cr)}</td>
+      <td class="n">${r.slope}</td><td class="n">${Number.isFinite(r.asc) ? r.asc : '–'}</td>
+      <td class="n">${r.dif == null ? '–' : r.dif}</td>
+      <td class="n"><b>${f1(r.hcpBruto)}</b></td><td class="n"><b>${cell(r.hcpNeto)}</b></td><td class="n"><b>${r.sace == null ? '–' : f3(r.sace)}</b></td>
+      <td>${r.cuenta ? 'Sí' : 'No'}</td>
+      <td><button class="ghost" data-edit="${r.id}" type="button" aria-label="Editar vuelta ${esc(r.torneo)}">Editar</button>
+        <button class="danger" data-del="${r.id}" type="button" aria-label="Borrar vuelta ${esc(r.torneo)}">Borrar</button></td>
     </tr>`).join('');
 }
 
 const form = document.getElementById('f');
 function readForm(){
   const d = new FormData(form);
-  return { federacion:d.get('federacion').trim(), fecha:d.get('fecha'), torneo:d.get('torneo').trim(),
-    neto:num(d.get('neto')), bruto:num(d.get('bruto')), cr:num(d.get('cr')), slope:num(d.get('slope')), asc:num(d.get('asc')) };
+  return { federacion:d.get('federacion').trim(), fecha:d.get('fecha'), torneo:d.get('torneo').trim(), campo:(d.get('campo') || '').trim(),
+    neto:num(d.get('neto')), bruto:num(d.get('bruto')), cr:num(d.get('cr')), slope:num(d.get('slope')), asc:num(d.get('asc')),
+    dif:num(d.get('dif')), cuenta:d.get('cuenta')==='si' };
 }
-function validNums(v){ return [v.bruto,v.cr,v.slope,v.asc].every(Number.isFinite) && v.slope > 0; }
+function validNums(v){ return [v.bruto,v.cr,v.slope].every(Number.isFinite) && v.slope > 0; }
 
 form.addEventListener('input', () => {
   const v = readForm(), p = document.getElementById('preview');
-  if(validNums(v)){ const c = calc(v); p.innerHTML = `HCP Bruto: <b>${fmtN(c.hcpBruto)}</b> &nbsp; SACE: <b>${fmtN(c.sace)}</b>`; }
-  else p.textContent = 'Completa Bruto, Valor Campo, Slope y ASC para ver el cálculo.';
+  if(validNums(v)){ const c = calc(v);
+    p.innerHTML = `HCP Bruto: <b>${f1(c.hcpBruto)}</b> &nbsp; HCP Neto: <b>${cell(c.hcpNeto)}</b> &nbsp; SACE: <b>${c.sace == null ? 'no cuenta' : f3(c.sace)}</b>`; }
+  else p.textContent = 'Completa Neto, Bruto, Valor Campo y Slope para ver el cálculo.';
 });
 
 form.addEventListener('submit', e => {
   e.preventDefault(); showMsg('');
   const v = readForm();
   if(!v.fecha || !v.torneo || !Number.isFinite(v.neto) || !validNums(v)){ showMsg('Revisa los campos: hay datos vacíos o no numéricos.'); return; }
-  rounds.push({ id: Date.now() + Math.random().toString(36).slice(2,6), ...v, ...calc(v) });
-  save(); render();
-  const keep = v.federacion; form.reset(); form.federacion.value = keep; form.dispatchEvent(new Event('input'));
-  form.fecha.focus();
+  if(editingId){
+    const i = rounds.findIndex(r => r.id === editingId);
+    if(i >= 0) rounds[i] = { id: editingId, ...v, ...calc(v) };
+  } else rounds.push({ id: Date.now() + Math.random().toString(36).slice(2,6), ...v, ...calc(v) });
+  save(); render(); resetForm(v.federacion); form.fecha.focus();
 });
 
+let editingId = null;
+function resetForm(fed){
+  editingId = null; form.reset(); form.federacion.value = fed || 'RFEG'; form.cuenta.value = 'si'; form.dif.value = '72';
+  document.getElementById('saveBtn').textContent = 'Guardar vuelta';
+  document.getElementById('cancelBtn').hidden = true;
+  showMsg(''); form.dispatchEvent(new Event('input'));
+}
+document.getElementById('cancelBtn').addEventListener('click', () => resetForm(form.federacion.value));
+function startEdit(id){
+  const r = rounds.find(x => x.id === id); if(!r) return;
+  const f = x => (x == null || (typeof x === 'number' && !Number.isFinite(x))) ? '' : x;
+  editingId = id;
+  form.federacion.value = r.federacion; form.fecha.value = r.fecha; form.torneo.value = r.torneo; form.campo.value = r.campo || '';
+  form.neto.value = f(r.neto); form.bruto.value = f(r.bruto); form.cr.value = f(r.cr); form.slope.value = f(r.slope);
+  form.asc.value = f(r.asc); form.dif.value = r.dif != null ? String(r.dif) : '72'; form.cuenta.value = r.cuenta ? 'si' : 'no';
+  document.getElementById('saveBtn').textContent = 'Actualizar vuelta';
+  document.getElementById('cancelBtn').hidden = false;
+  showMsg(''); form.dispatchEvent(new Event('input'));
+  form.scrollIntoView({behavior:'smooth', block:'start'}); form.torneo.focus({preventScroll:true});
+}
+
+// Doble pulsación para borrar (sin ventanas emergentes, que algunos móviles bloquean)
+function armConfirm(btn, label, action){
+  if(btn.dataset.armed){
+    clearTimeout(+btn.dataset.armed); delete btn.dataset.armed;
+    btn.textContent = btn.dataset.orig; action(); return;
+  }
+  btn.dataset.orig = btn.textContent; btn.textContent = label;
+  btn.dataset.armed = String(setTimeout(() => { btn.textContent = btn.dataset.orig; delete btn.dataset.armed; }, 4000));
+}
 document.getElementById('rows').addEventListener('click', e => {
-  const id = e.target.dataset && e.target.dataset.del;
-  if(id && confirm('¿Borrar esta vuelta?')){ rounds = rounds.filter(r => r.id !== id); save(); render(); }
+  const b = e.target.closest ? e.target.closest('button') : null; if(!b) return;
+  if(b.dataset.edit){ startEdit(b.dataset.edit); return; }
+  const id = b.dataset.del; if(!id) return;
+  armConfirm(b, '¿Seguro?', () => {
+    rounds = rounds.filter(r => r.id !== id);
+    if(editingId === id) resetForm(form.federacion.value);
+    save(); render();
+  });
 });
 
-/* ---- CSV (separador ; con las 12 columnas indicadas) ---- */
+/* ---- CSV: mismo formato que el de entrada (Excel) ----
+   CAT, Fede, MES, Año, Fecha, Torneo, CAMPO, HCP Neto, HCP Bruto, V.C, Slope, ASC
+   Separador coma; decimales con coma (entre comillas); fecha d/m/aa; más recientes primero. */
+const EXPORT_COLS = ['CAT','Fede','MES','Año','Fecha','Torneo','CAMPO','HCP Neto','HCP Bruto','V.C','Slope','ASC'];
+function buildCSV(list){
+  const q = s => /[",\r\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  const out = x => (x == null || (typeof x === 'number' && !Number.isFinite(x))) ? '' : fmtN(x);
+  const lines = [EXPORT_COLS.join(',')];
+  [...list].sort((a,b) => b.fecha.localeCompare(a.fecha)).forEach(r => {
+    const [y,m,d] = r.fecha.split('-');
+    lines.push([
+      r.cuenta ? out(r.dif) : '', r.federacion || '', String(+m), y, `${+d}/${+m}/${y.slice(2)}`, r.torneo, r.campo || '',
+      out(r.neto), out(r.bruto), out(r.cr), out(r.slope), out(r.asc)
+    ].map(x => q(String(x))).join(','));
+  });
+  return lines.join('\r\n');
+}
 document.getElementById('exp').addEventListener('click', () => {
-  const q = s => '"' + String(s).replace(/"/g,'""') + '"';
-  const lines = [COLS.map(q).join(';')];
-  [...rounds].sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(r => lines.push([
-    r.federacion, MESES[+r.fecha.slice(5,7)-1], r.fecha.slice(0,4), fmtDate(r.fecha), r.torneo,
-    fmtN(r.neto), r.bruto, fmtN(r.cr), r.slope, r.asc, fmtN(r.hcpBruto), fmtN(r.sace)
-  ].map(q).join(';')));
-  const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  const blob = new Blob(['\ufeff' + buildCSV(rounds)], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'vueltas-golf.csv'; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 });
 
-function parseCSV(text){
+function detectDelim(text){
+  const first = text.split(/\r?\n/)[0] || '';
+  const c = d => first.split(d).length - 1;
+  return [';','\t',','].sort((x,y) => c(y) - c(x))[0];
+}
+function parseCSV(text, delim){
   const rows = []; let row = [], cur = '', inQ = false;
   for(let i=0;i<text.length;i++){
     const c = text[i];
     if(inQ){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else inQ=false; } else cur+=c; }
     else if(c==='"') inQ = true;
-    else if(c===';'){ row.push(cur); cur=''; }
+    else if(c===delim){ row.push(cur); cur=''; }
     else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
     else if(c!=='\r') cur+=c;
   }
   if(cur!=='' || row.length){ row.push(cur); rows.push(row); }
   return rows;
 }
+function parseDate(x){
+  x = String(x || '').trim();
+  let m = x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m = x.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+  if(!m) return null;
+  let y = +m[3]; if(y < 100) y += 2000;
+  return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+}
+/* Lee dos formatos:
+   1) Excel: CAT, Fede, MES, Año, Fecha, Torneo, CAMPO, HCP Neto, HCP Bruto, V.C, Slope, ASC
+      (CAT = Diferencial 70/72/74; si CAT está vacío, la vuelta NO cuenta para SACE;
+       HCP Neto / HCP Bruto son los golpes)
+   2) El CSV que exporta esta app. */
+function rowsFromCSV(text){
+  text = text.replace(/^\ufeff/, '');
+  const all = parseCSV(text, detectDelim(text));
+  const H = (all[0] || []).map(h => h.trim().toLowerCase());
+  const excel = H.includes('cat') && H.includes('v.c');
+  const items = []; let bad = 0;
+  all.slice(1).forEach(c => {
+    if(c.every(x => !x.trim())) return;
+    const g = n => { const i = H.indexOf(n.toLowerCase()); return i < 0 ? undefined : c[i]; };
+    let v;
+    if(excel){
+      const dif = num(g('CAT'));
+      v = { federacion:(g('Fede') || '').trim(), fecha:parseDate(g('Fecha')), torneo:(g('Torneo') || '').trim(), campo:(g('CAMPO') || '').trim(),
+        neto:num(g('HCP Neto')), bruto:num(g('HCP Bruto')), cr:num(g('V.C')), slope:num(g('Slope')), asc:num(g('ASC')),
+        dif, cuenta:Number.isFinite(dif) };
+    } else {
+      const sc = g('Cuenta SACE');
+      v = { federacion:g('Federacion') || '', fecha:parseDate(g('Fecha')), torneo:g('Torneo') || '', campo:g('Campo') || '',
+        neto:num(g('Neto HCP')), bruto:num(g('Bruto')), cr:num(g('Valor Campo')), slope:num(g('Slope')), asc:num(g('ASC')),
+        dif:num(g('Diferencial')), cuenta: sc !== undefined ? /^s/i.test(sc.trim()) : (g('sace') || '').trim() !== '' };
+    }
+    if(!v.fecha || !validNums(v)){ bad++; return; }
+    const r = { id: Date.now() + Math.random().toString(36).slice(2,8), ...v, ...calc(v) };
+    if(!excel && v.cuenta && r.sace == null){ const fs = num(g('sace')); if(Number.isFinite(fs)) r.sace = fs; }
+    items.push(r);
+  });
+  return { items, bad };
+}
 document.getElementById('imp').addEventListener('click', () => document.getElementById('file').click());
 document.getElementById('file').addEventListener('change', e => {
   const file = e.target.files[0]; if(!file) return;
   const rd = new FileReader();
   rd.onload = () => {
-    const data = parseCSV(String(rd.result).replace(/^\ufeff/, '')).slice(1).filter(r => r.length >= 12);
-    let added = 0;
-    data.forEach(c => {
-      const [dd,mm,yy] = c[3].split('/');
-      const v = { federacion:c[0], fecha:`${yy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`, torneo:c[4],
-        neto:num(c[5]), bruto:num(c[6]), cr:num(c[7]), slope:num(c[8]), asc:num(c[9]) };
-      if(!yy || !validNums(v)) return;
-      rounds.push({ id: Date.now() + Math.random().toString(36).slice(2,6), ...v, ...calc(v) }); added++;
-    });
-    save(); render(); showMsg(added ? '' : 'No se encontraron vueltas válidas en el CSV.');
+    const { items, bad } = rowsFromCSV(String(rd.result));
+    const key = r => [r.fecha, r.torneo.toLowerCase(), r.neto, r.bruto].join('|');
+    const have = new Set(rounds.map(key)); let added = 0, dup = 0;
+    items.forEach(r => { if(have.has(key(r))){ dup++; return; } have.add(key(r)); rounds.push(r); added++; });
+    save(); render();
+    showMsg(`Importadas ${added} vueltas` + (dup ? `, ${dup} repetidas omitidas` : '') + (bad ? `, ${bad} filas no válidas` : '') + '.');
     e.target.value = '';
   };
   rd.readAsText(file);
 });
 
-document.getElementById('clr').addEventListener('click', () => {
-  if(rounds.length && confirm('¿Borrar todas las vueltas guardadas en este navegador?')){ rounds = []; save(); render(); }
+document.getElementById('clr').addEventListener('click', e => {
+  if(!rounds.length) return;
+  armConfirm(e.currentTarget, 'Pulsa otra vez para borrar todo', () => { rounds = []; resetForm(form.federacion.value); save(); render(); });
+});
+
+document.querySelector('.tabs').addEventListener('click', e => {
+  const t = e.target.dataset && e.target.dataset.tab; if(!t) return;
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  ['vueltas','hcp','sace'].forEach(n => { document.getElementById('v-' + n).hidden = n !== t; });
 });
 
 load(); render();
