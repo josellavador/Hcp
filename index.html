@@ -122,8 +122,9 @@
     <button class="ghost" id="exp" type="button">Exportar CSV</button>
     <button class="ghost" id="imp" type="button">Importar CSV</button>
     <button class="danger" id="clr" type="button">Borrar todo</button>
-    <input id="file" type="file" accept=".csv,text/csv" hidden>
+    <input id="file" type="file" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" tabindex="-1" aria-hidden="true">
   </div>
+  <p class="note" id="impMsg" role="status"></p>
   <p class="note">Los datos se guardan en este navegador. Exporta el CSV para tener copia de seguridad o usarlo en otro dispositivo. Sombreadas: las vueltas que cuentan para el HCP SACE.</p>
 </section>
 
@@ -371,18 +372,23 @@ function parseDate(x){
   let y = +m[3]; if(y < 100) y += 2000;
   return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
 }
-/* Lee dos formatos:
+/* Lee dos formatos (la fila de cabecera puede no ser la primera):
    1) Excel: CAT, Fede, MES, Año, Fecha, Torneo, CAMPO, HCP Neto, HCP Bruto, V.C, Slope, ASC
       (CAT = Diferencial 70/72/74; si CAT está vacío, la vuelta NO cuenta para SACE;
        HCP Neto / HCP Bruto son los golpes)
-   2) El CSV que exporta esta app. */
+   2) El CSV que exporta esta app (mismo formato). */
 function rowsFromCSV(text){
-  text = text.replace(/^\ufeff/, '');
-  const all = parseCSV(text, detectDelim(text));
-  const H = (all[0] || []).map(h => h.trim().toLowerCase());
+  text = text.replace(/^\ufeff/, '').replace(/\r\n?/g, '\n');   // acepta saltos de línea de Windows, Mac antiguo y Unix
+  const noHead = { items:[], bad:0, error:'No encuentro la fila de cabecera: debe tener las columnas Fecha y Torneo.' };
+  const hl = text.split('\n').find(l => /fecha/i.test(l) && /torneo/i.test(l));
+  if(!hl) return noHead;
+  const all = parseCSV(text, detectDelim(hl));
+  const hi = all.findIndex(r => { const t = r.map(x => x.trim().toLowerCase()); return t.includes('fecha') && t.includes('torneo'); });
+  if(hi < 0) return noHead;
+  const H = all[hi].map(h => h.trim().toLowerCase());
   const excel = H.includes('cat') && H.includes('v.c');
-  const items = []; let bad = 0;
-  all.slice(1).forEach(c => {
+  const items = []; let bad = 0, why = '';
+  all.slice(hi + 1).forEach(c => {
     if(c.every(x => !x.trim())) return;
     const g = n => { const i = H.indexOf(n.toLowerCase()); return i < 0 ? undefined : c[i]; };
     let v;
@@ -393,31 +399,44 @@ function rowsFromCSV(text){
         dif, cuenta:Number.isFinite(dif) };
     } else {
       const sc = g('Cuenta SACE');
-      v = { federacion:g('Federacion') || '', fecha:parseDate(g('Fecha')), torneo:g('Torneo') || '', campo:g('Campo') || '',
+      v = { federacion:g('Federacion') || g('Fede') || '', fecha:parseDate(g('Fecha')), torneo:g('Torneo') || '', campo:g('Campo') || '',
         neto:num(g('Neto HCP')), bruto:num(g('Bruto')), cr:num(g('Valor Campo')), slope:num(g('Slope')), asc:num(g('ASC')),
         dif:num(g('Diferencial')), cuenta: sc !== undefined ? /^s/i.test(sc.trim()) : (g('sace') || '').trim() !== '' };
     }
-    if(!v.fecha || !validNums(v)){ bad++; return; }
+    if(!v.fecha || !validNums(v)){
+      bad++;
+      if(!why) why = !v.fecha ? `fecha no válida («${(g('Fecha') || '').trim()}»)` : 'faltan Bruto, V.C o Slope numéricos';
+      return;
+    }
     const r = { id: Date.now() + Math.random().toString(36).slice(2,8), ...v, ...calc(v) };
     if(!excel && v.cuenta && r.sace == null){ const fs = num(g('sace')); if(Number.isFinite(fs)) r.sace = fs; }
     items.push(r);
   });
-  return { items, bad };
+  return { items, bad, why };
 }
-document.getElementById('imp').addEventListener('click', () => document.getElementById('file').click());
-document.getElementById('file').addEventListener('change', e => {
+const impMsg = t => { document.getElementById('impMsg').textContent = t; };
+document.getElementById('imp').addEventListener('click', () => { impMsg(''); document.getElementById('file').click(); });
+document.getElementById('file').addEventListener('change', async e => {
   const file = e.target.files[0]; if(!file) return;
-  const rd = new FileReader();
-  rd.onload = () => {
-    const { items, bad } = rowsFromCSV(String(rd.result));
+  try{
+    if(/\.xlsx?$/i.test(file.name)){ impMsg('Ese archivo es de Excel. Guárdalo como CSV (Archivo → Guardar como → CSV) y vuelve a importarlo.'); return; }
+    const buf = await file.arrayBuffer();
+    let text;
+    try{ text = new TextDecoder('utf-8', { fatal:true }).decode(buf); }
+    catch(_){   // CSV antiguo de Excel (no UTF-8): Mac usa macintosh, Windows windows-1252
+      const raw = new TextDecoder('latin1').decode(buf);
+      text = new TextDecoder(/\r(?!\n)/.test(raw) ? 'macintosh' : 'windows-1252').decode(buf);
+    }
+    const res = rowsFromCSV(text);
+    if(res.error){ impMsg(res.error); return; }
     const key = r => [r.fecha, r.torneo.toLowerCase(), r.neto, r.bruto].join('|');
     const have = new Set(rounds.map(key)); let added = 0, dup = 0;
-    items.forEach(r => { if(have.has(key(r))){ dup++; return; } have.add(key(r)); rounds.push(r); added++; });
+    res.items.forEach(r => { if(have.has(key(r))){ dup++; return; } have.add(key(r)); rounds.push(r); added++; });
     save(); render();
-    showMsg(`Importadas ${added} vueltas` + (dup ? `, ${dup} repetidas omitidas` : '') + (bad ? `, ${bad} filas no válidas` : '') + '.');
-    e.target.value = '';
-  };
-  rd.readAsText(file);
+    impMsg(`Importadas ${added} vueltas` + (dup ? `, ${dup} repetidas omitidas` : '') + (res.bad ? `, ${res.bad} filas no válidas (primera: ${res.why})` : '') + '.');
+  }catch(err){
+    impMsg('No se pudo leer el archivo: ' + (err && err.message ? err.message : err));
+  }finally{ e.target.value = ''; }
 });
 
 document.getElementById('clr').addEventListener('click', e => {
