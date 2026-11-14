@@ -1,5 +1,5 @@
 ﻿CAT,Fede,MES,Año,Fecha,Torneo,CAMPO,HCP Neto,HCP Bruto,V.C,Slope,ASC
-,RFEG,11,2026,8/11/26,Torneo social aranjuez,Aranjuez,71,71,"66,6",127,0
+,,11,2026,8/11/26,Torneo social aranjuez,Aranjuez,71,71,"66,6",127,0
 74,F,10,2026,25/10/26,Campeonato Canarias WAGR - Dia 1,Las meloneras golf,74,74,71,136,0
 74,F,10,2026,24/10/26,Campeonato Canarias WAGR - Dia 1,Las meloneras golf,68,68,71,136,-1
 74,F,10,2026,23/10/26,Campeonato Canarias WAGR - Dia 1,Las meloneras golf,71,71,71,136,-1
@@ -45,7 +45,7 @@
 ,,7,2025,25/7/25,Pachanga Aranjuez,Aranjuez,69,69,"66,6",127,0
 74,x,7,2025,19/7/25,Campeonato WAGR Masculino Golf Santander 2,Golf Santander,78,78,"75,6",142,-1
 74,x,7,2025,18/7/25,Campeonato WAGR Masculino Golf Santander 1,Golf Santander,80,82,"75,6",142,0
-74,x,7,2025,9/7/25,Campeonato de Madrid Sub16 dia 2,Race,79,81,74,138,-1
+74,x,7,2025,9/7/25,Campeonato de Madrid Sub16 dia 2,Race,83,83,74,138,-1
 74,x,7,2025,8/7/25,Campeonato de Madrid Sub16 dia 1,Race,79,79,74,138,0
 74,x,7,2025,6/7/25,IMG 2025,Retamares,83,83,"72,3",129,-1
 74,x,7,2025,5/7/25,IMG 2025,Retamares,76,76,"72,3",129,0
@@ -70,7 +70,7 @@
 74,x,12,2024,26/12/24,Final RKN Moraleja 2 Dia 1,Moraleja 2,83,83,"71,3",135,0
 74,,12,2024,20/12/24,vuelta valdeluz golf,Valdeluz,69,69,"69,8",128,0
 74,x,11,2024,10/11/24,Torneo Juvenil Sub-16 La faisanera,Faisanera Golf,77,77,"71,6",129,0
-,,10,2024,26/10/24,Copa Espa�a (9 hoyos),Aranjuez,34,34,"29,8",128,0
+,,10,2024,26/10/24,Copa España (9 hoyos),Aranjuez,34,34,"29,8",128,0
 74,x,10,2024,19/10/24,Campeonato de madrid Interclub,Calatayud Golf,77,77,"71,1",126,0
 74,x,10,2024,5/10/24,Campeonato FGM Retamares infantil,Retamares,89,89,71,126,0
 ,x,9,2024,28/9/24,Copa Alianza Dia 2,Naturavila,90,90,"74,8",136,0
@@ -79,13 +79,68 @@
 ,x,9,2024,14/9/24,Campeonato Infantil Nuevo Club,Nuevo Club,79,79,"69,2",127,0
 ,x,9,2024,4/9/24,Torneo Infantil RKN Centro nacional golf,Centro nacional,76,76,"68,6",122,0
 74,x,9,2024,3/9/24,Torneo Infantil RKN Centro nacional golf,Centro nacional,72,73,"68,6",122,0
-74,E,8,2024,29/8/24,Campeonato de Espa�a Interclub Lauro dia 2,Lauro Golf Malaga,79,79,"69,8",130,0
-74,E,8,2024,28/8/24,Campeonato de Espa�a Interclub Lauro dia 1,Lauro Golf Malaga,74,74,"69,8",130,0
-74,x,8,2024,7/8/24,Campeonato WAGR Salamanca Zarapicos Dia 2 (no corte),Zarapicos,80,81,"70,9",132,0
+74,E,8,2024,29/8/24,Campeonato de España Interclub Lauro dia 2,Lauro Golf Malaga,79,79,"69,8",130,0
+74,E,8,2024,28/8/24,Campeonato de España Interclub Lauro dia 1,Lauro Golf Malaga,74,74,"69,8",130,0
+74,x,8,2024,7/8/24,WAGR Salamanca Zarapicos Dia 2 (no corte),Zarapicos,80,81,"70,9",132,0
 74,x,8,2024,6/8/24,Campeonato WAGR Salamanca Zarapicos Dia 1,Zarapicos,81,82,"70,9",132,0
-74,x,7,2024,20/7/24,Wagr Campeonato de madrid Amateur golf Santander Dia 2 (no corte),Golf Santander,86,87,"75,6",142,0
-74,x,7,2024,19/7/24,Wagr Campeonato de madrid Amateur golf Santander Dia 1,Golf Santander,86,86,"75,6",142,0
+74,x,7,2024,20/7/24,Wagr C. madrid Amateur golf San Dia 2 (no corte),Golf Santander,86,87,"75,6",142,0
+74,x,7,2024,19/7/24,Wagr C.madrid Amateur golf SanDia 1,Golf Santander,86,86,"75,6",142,0
 74,,7,2024,11/7/24,Torneo Multibarras Montealvar Blancas,Montealvar,69,77,"69,8",128,-1
 74,x,7,2024,10/7/24,Copa de la reina alternativo Retamares Blancas Dia 2,Retamares,77,77,"72,2",130,0
 ,x,7,2024,9/7/24,Copa de la reina alternativo Retamares Blancas Dia 1,Retamares,82,83,"72,2",130,0
 74,,7,2024,7/7/24,Torneo de parejas fourball Club de Golf Aranjuez,Aranjuez,67,77,"66,3",128,0
+74,,7,2024,3/7/24,Torneo Social Club de Golf Aranjuez,Aranjuez,71,84,"66,3",128,0
+,E,6,2024,27/6/24,Campeonato España Infantil 2024 la manga campo sur,La manga club,82,84,"72,5",134,0
+74,E,6,2024,26/6/24,Campeonato España Infantil 2024 la manga campo sur,La manga club,86,88,"72,5",134,0
+74,E,6,2024,25/6/24,Campeonato España Infantil 2024 la manga campo sur,La manga club,80,83,"72,5",134,-1
+,x,6,2024,1/6/24,Campeonato IMG retamares infantil,Retamares,84,84,71,126,0
+74,x,5,2024,26/5/24,Campeonato madrid Infantil Las Rejas Dia 2,Las rejas golf,72,72,"68,4",134,-1
+,x,5,2024,25/5/24,Campeonato madrid Infantil Las Rejas Dia 1,Las rejas golf,80,80,"68,4",134,0
+,x,4,2024,7/4/24,Zonal II - Layos Dia 2,Layos,89,95,"72,3",122,0
+72,x,4,2024,6/4/24,Zonal II - Layos Dia 1,layos,86,86,"72,3",122,0
+,x,4,2024,1/4/24,Campeonato Infantil Puerta de Hierro,Puerta de hierro,88,91,"71,4",135,0
+,x,2,2024,25/2/24,Puntuable Zonal I Montealvar Dia 2 Amarillas,Montealvar,79,79,"68,7",125,0
+74,x,2,2024,24/2/24,Puntuable Zonal I Montealvar Dia 1 Amarillas,Montealvar,77,77,"68,7",125,0
+,x,2,2024,17/2/24,Torneo MAJ Centro nacional (negras),Centro nacional,92,92,"73,6",131,0
+,,2,2024,10/2/24,Torneo de la Escuela Centro Nacional,Centro nacional,84,84,"70,6",127,0
+74,x,1,2024,28/1/24,Campeonato madrid 2 Categoria CNG Dia 2,Centro nacional,79,79,"68,6",122,0
+,x,1,2024,27/1/24,Campeonato madrid 2 Categoria CNG Dia 1,Centro nacional,83,83,"68,6",122,1
+74,,12,2023,29/12/23,Casual Friday Valdeluz,Montealvar,74,74,"69,8",128,0
+74,x,11,2023,22/11/23,Torneo IMG Retamares dia 2,Retamares,78,78,71,126,0
+,x,11,2023,21/11/23,Torneo IMG Retamares dia 1,Retamares,77,77,71,126,0
+74,,10,2023,9/10/23,Torneo social aranjuez,Aranjuez,68,68,"66,3",128,0
+74,x,9,2023,5/9/23,Torneo federacion El encin,El encin,81,81,"71,7",131,-1
+74,,9,2023,3/9/23,Torneo aranjuez social,Aranjuez,73,73,"66,3",128,0
+74,E,8,2023,31/8/23,Campeonato españa Equipos Infantil Lauro,Lauro Golf Malaga,79,79,"70,4",129,0
+74,E,8,2023,30/8/23,Campeonato españa Equipos Infantil Lauro,Lauro Golf Malaga,77,78,"70,4",129,0
+74,,8,2023,23/8/23,Torneo Montecastillo Cadiz,Montecastillo,90,90,"72,4",131,0
+74,,8,2023,15/8/23,Torneo la Roda Golf La Manga,La manga club,77,77,"71,1",133,0
+74,x,7,2023,12/7/23,Campeonato WAGR Masculino FGM - Golf Santander Blancas,Golf Santander,86,89,"75,6",142,0
+74,x,7,2023,11/7/23,Campeonato WAGR Masculino FGM - Golf Santander Blancas,Golf Santander,83,83,"75,6",142,-1
+74,x,7,2023,3/7/23,Centro nacional torneo federacion puntuable Julio 2023,Centro nacional,75,75,"68,6",122,0
+,x,7,2023,2/7/23,Centro nacional torneo federacion puntuable Julio 2023,Centro nacional,76,76,"68,6",122,0
+74,,6,2023,17/6/23,COPA ESPAÑA 9 HOYOS INDIVIDUAL (aranjuez),Aranjuez,38,38,"33,2",64,0
+74,x,6,2023,3/6/23,Torneo Retamares Miguel Angel Jimenez,Retamares,84,85,71,126,0
+,x,5,2023,28/5/23,Campeonato de madrid 2023 dia 2,,77,79,"69,2",127,0
+74,x,5,2023,27/5/23,Campeonato de madrid 2023 dia 1,,80,81,"69,2",127,0
+,x,5,2023,6/5/23,Torneo Puntuable RKN Infantil Barberan,Barberan,83,84,"71,4",130,0
+,x,3,2023,12/3/23,II Puntuable Zonal Layos,Layos,85,86,"72,3",122,0
+72,x,3,2023,11/3/23,II Puntuable Zonal Layos,Layos,88,88,"72,3",122,1
+,x,3,2023,5/3/23,FGM Naturavila,Naturavila,82,82,"72,2",135,-1
+72,x,2,2023,24/2/23,Torneo Miguel Angel Jimenez. Sub 16 (blancas),,82,82,"70,6",127,0
+74,x,2,2023,19/2/23,Puntuable Zonal Valdeluz,Montealvar,81,83,"68,7",125,0
+74,x,2,2023,18/2/23,Puntuable Zonal Valdeluz,Montealvar,79,79,"68,7",125,0
+,x,1,2023,7/1/23,Torneo de la escuela Golf Aranjuez individual,Aranjuez,36,36,"33,2",64,-1
+74,x,11,2022,12/11/22,Torneo FGM Alevin las Rejas,Las rejas golf,82,82,"68,4",134,0
+74,x,11,2022,6/11/22,Torneo FGM Alevin Aranjuez,Aranjuez,79,79,"66,3",128,0
+,,10,2022,9/10/22,Puntuable Campeonato España 2023 Las Rejas FGM,Las rejas golf,79,79,"68,4",134,0
+,x,9,2022,11/9/22,Centro nacional torneo federacion puntuable 2023,Centro nacional,83,83,"66,5",114,0
+74,x,9,2022,1/9/22,valdeluz,Montealvar,70,70,67,123,-1
+74,,8,2022,20/8/22,NEGRALEJO  P&P,Negralejo,54,54,"50,1",59,0
+,x,8,2022,16/8/22,NEGRALEJO  P&P,Negralejo,50,50,"50,1",59,0
+74,,7,2022,10/7/22,Retamares IMG,Retamares,86,87,68,121,0
+,x,7,2022,9/7/22,Retamares IMG,Retamares,86,92,68,121,0
+74,E,6,2022,28/6/22,CTO España alevin masculina 2022,La manga club,85,85,"67,1",121,0
+74,E,6,2022,27/6/22,CTO España alevin masculina 2022,La manga club,80,80,"67,1",121,0
+,E,6,2022,26/6/22,CTO España alevin masculina 2022,La manga club,81,81,"67,1",121,0
+,x,5,2022,15/5/22,Campeonato de madrid Alevin - Club de golf Aranjuez,Aranjuez,78,78,"66,3",128,-1
