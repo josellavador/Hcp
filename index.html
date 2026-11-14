@@ -128,6 +128,29 @@
   <p class="note">Los datos se guardan en este navegador. Exporta el CSV para tener copia de seguridad o usarlo en otro dispositivo. Sombreadas: las vueltas que cuentan para el HCP SACE.</p>
 </section>
 
+<section class="card">
+  <h2>Guardar en GitHub</h2>
+  <p class="note" style="margin-top:0">El archivo de datos queda en tu repositorio. Si el repositorio es público, <b>cualquiera podría verlo</b>. El token se guarda solo en este navegador, nunca en el archivo.</p>
+  <form id="ghForm" autocomplete="off" style="margin-top:12px">
+    <label class="wide">Repositorio (usuario/nombre) <input id="ghRepo" placeholder="josellavador/Hcp"></label>
+    <label class="wide">Archivo de datos <input id="ghPath" placeholder="vueltas.csv"></label>
+    <label class="wide">Token de GitHub (solo para guardar) <input id="ghToken" type="password" placeholder="github_pat_..."></label>
+    <label class="wide" style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="ghAuto" style="width:auto;min-height:0"> Guardar automáticamente tras cada cambio</label>
+    <div class="actions">
+      <button class="primary" id="ghPush" type="button">Guardar ahora en GitHub</button>
+      <button class="ghost" id="ghPull" type="button">Cargar de GitHub</button>
+    </div>
+  </form>
+  <p class="note" id="ghMsg" role="status"></p>
+  <details class="note"><summary>Cómo crear el token</summary>
+    <ol>
+      <li>En github.com: tu foto → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
+      <li>En <b>Repository access</b> elige <b>Only select repositories</b> y marca solo tu repositorio de golf.</li>
+      <li>En <b>Permissions → Repository permissions</b> pon <b>Contents: Read and write</b>.</li>
+      <li>Genera el token, cópialo y pégalo arriba. No lo compartas con nadie.</li>
+    </ol>
+  </details>
+</section>
 </div>
 
 <div id="v-hcp" hidden><section class="card"><h2>HCP: últimas 20 vueltas</h2><div id="hcpView"></div></section></div>
@@ -177,7 +200,8 @@ function load(){ try{ rounds = JSON.parse(localStorage.getItem(KEY)) || []; }cat
     const c = calc(r); r.hcpBruto = c.hcpBruto; r.hcpNeto = c.hcpNeto;   // recalcula con la fórmula actual
     if(Number.isFinite(r.dif) || !r.cuenta) r.sace = c.sace;
   }); }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(rounds)); }catch(e){ showMsg('No se pudo guardar en este navegador. Exporta el CSV.'); } }
+function save(skipRemote){ try{ localStorage.setItem(KEY, JSON.stringify(rounds)); }catch(e){ showMsg('No se pudo guardar en este navegador. Exporta el CSV.'); }
+  if(!skipRemote) ghSchedule(); }
 function showMsg(t){ document.getElementById('msg').textContent = t || ''; }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDate = iso => iso ? iso.split('-').reverse().join('/') : '';
@@ -194,7 +218,7 @@ function showIdx(res, numId, txtId, dec){
     : `${res.k} mejores de ${res.n} vueltas${res.adj ? ` (ajuste ${res.adj})` : ''}.`;
 }
 
-function renderView(key, id, colName, dec){
+function renderView(key, id, colName, dec, strokes, strokesLabel){
   const fx = dec === 3 ? f3 : f1;
   const sorted = [...rounds].sort((a,b) => a.fecha.localeCompare(b.fecha));
   const last = sorted.filter(r => r[key] != null).slice(-20);
@@ -204,7 +228,7 @@ function renderView(key, id, colName, dec){
   const rank = new Map([...res.set].sort((a,b) => a[key]-b[key]).map((r,i) => [r, i+1]));
   const full = last.length === 20;
   const rows = [...last].reverse().map((r,i) => `<tr class="${rank.has(r) ? 'best' : ''}${i===last.length-1 && full ? ' old' : ''}">
-    <td class="n">${i+1}</td><td>${fmtDate(r.fecha)}</td><td>${esc(r.torneo)}</td><td class="n"><b>${fx(r[key])}</b></td>
+    <td class="n">${i+1}</td><td>${fmtDate(r.fecha)}</td><td>${esc(r.torneo)}</td><td class="n">${Number.isFinite(r[strokes]) ? r[strokes] : '–'}</td><td class="n"><b>${fx(r[key])}</b></td>
     <td>${rank.has(r) ? `<span class="tag in">Cuenta · ${rank.get(r)}ª mejor</span>` : ''}${i===last.length-1 && full ? '<span class="tag out">Sale la próxima</span>' : ''}</td></tr>`).join('');
 
   let head = res.index === null
@@ -229,7 +253,7 @@ function renderView(key, id, colName, dec){
   }
   el.innerHTML = `<div class="box">${head}</div>
     <div class="box">${next}${thr}</div>
-    <div class="tablewrap"><table><thead><tr><th class="n">#</th><th>Fecha</th><th>Torneo</th><th class="n">${colName}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tablewrap"><table><thead><tr><th class="n">#</th><th>Fecha</th><th>Torneo</th><th class="n">${strokesLabel}</th><th class="n">${colName}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="note">Orden de más nuevo a más antiguo: la 1 es la más reciente y la última es la que sale. Las sombreadas son las que hacen la media.</p>`;
 }
 
@@ -237,7 +261,7 @@ function render(){
   const sorted = [...rounds].sort((a,b) => a.fecha.localeCompare(b.fecha));
   const N = calcIndex(sorted, 'hcpNeto'), S = calcIndex(sorted, 'sace');
   showIdx(N, 'idxN', 'idxNTxt'); showIdx(S, 'idxS', 'idxSTxt', 3);
-  renderView('hcpNeto', 'hcpView', 'HCP Neto'); renderView('sace', 'saceView', 'SACE', 3);
+  renderView('hcpNeto', 'hcpView', 'HCP Neto', 1, 'neto', 'Golpes Neto'); renderView('sace', 'saceView', 'SACE', 3, 'bruto', 'Golpes Bruto');
   const tb = document.getElementById('rows');
   if(!sorted.length){ tb.innerHTML = '<tr><td colspan="17" class="empty">Aún no hay vueltas. Guarda la primera con el formulario.</td></tr>'; return; }
   tb.innerHTML = [...sorted].reverse().map(r => `
@@ -444,13 +468,81 @@ document.getElementById('clr').addEventListener('click', e => {
   armConfirm(e.currentTarget, 'Pulsa otra vez para borrar todo', () => { rounds = []; resetForm(form.federacion.value); save(); render(); });
 });
 
+/* ---- Guardar / cargar en GitHub (API de contenidos) ---- */
+const GH_KEY = 'golf-gh-v1';
+const gh = { repo:'', path:'vueltas.csv', token:'', auto:true };
+(function inferRepo(){   // en GitHub Pages: usuario.github.io/repo/
+  try{ const m = location.hostname.match(/^(.+)\.github\.io$/), p = location.pathname.split('/')[1];
+    if(m && p) gh.repo = m[1] + '/' + p; }catch(e){}
+})();
+function ghLoadCfg(){ try{ Object.assign(gh, JSON.parse(localStorage.getItem(GH_KEY)) || {}); }catch(e){} }
+function ghSaveCfg(){ try{ localStorage.setItem(GH_KEY, JSON.stringify(gh)); }catch(e){} }
+const ghMsg = t => { document.getElementById('ghMsg').textContent = t; };
+const ghUrl = () => `https://api.github.com/repos/${gh.repo.trim()}/contents/${gh.path.trim().split('/').map(encodeURIComponent).join('/')}`;
+const ghHeaders = () => ({ 'Accept':'application/vnd.github+json', ...(gh.token ? { 'Authorization':'Bearer ' + gh.token.trim() } : {}) });
+function b64enc(str){ let bin = ''; new TextEncoder().encode(str).forEach(b => { bin += String.fromCharCode(b); }); return btoa(bin); }
+function b64dec(b64){ const bin = atob(b64.replace(/\s/g, '')); return new TextDecoder('utf-8').decode(Uint8Array.from(bin, c => c.charCodeAt(0))); }
+function ghError(status){
+  if(status === 401) return 'el token no es válido o ha caducado';
+  if(status === 403 || status === 404) return 'sin acceso: revisa el nombre del repositorio y que el token tenga Contents: Read and write';
+  return 'GitHub respondió ' + status;
+}
+async function ghGet(){
+  const r = await fetch(ghUrl(), { headers:ghHeaders(), cache:'no-store' });
+  if(r.status === 404) return null;
+  if(!r.ok) throw new Error(ghError(r.status));
+  return r.json();
+}
+async function ghPush(){
+  if(!gh.repo.trim() || !gh.path.trim()){ ghMsg('Indica repositorio y archivo.'); return false; }
+  if(!gh.token.trim()){ ghMsg('Falta el token para poder guardar.'); return false; }
+  ghMsg('Guardando en GitHub…');
+  try{
+    for(let intento = 0; intento < 2; intento++){
+      const cur = await ghGet();
+      const body = { message:'Actualizar vueltas ' + new Date().toISOString().slice(0,16).replace('T',' '), content:b64enc('\ufeff' + buildCSV(rounds)) };
+      if(cur && cur.sha) body.sha = cur.sha;
+      const r = await fetch(ghUrl(), { method:'PUT', headers:{ ...ghHeaders(), 'Content-Type':'application/json' }, body:JSON.stringify(body) });
+      if(r.ok){ ghMsg('Guardado en GitHub a las ' + new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' }) + '.'); return true; }
+      if(r.status !== 409 && r.status !== 422) throw new Error(ghError(r.status));
+    }
+    throw new Error('conflicto al guardar; vuelve a intentarlo');
+  }catch(err){ ghMsg('No se pudo guardar: ' + err.message); return false; }
+}
+async function ghPull(){
+  if(!gh.repo.trim() || !gh.path.trim()){ ghMsg('Indica repositorio y archivo.'); return; }
+  ghMsg('Cargando de GitHub…');
+  try{
+    const cur = await ghGet();
+    if(!cur){ ghMsg('Todavía no existe ' + gh.path + ' en el repositorio. Pulsa "Guardar ahora" para crearlo.'); return; }
+    const res = rowsFromCSV(b64dec(cur.content));
+    if(res.error){ ghMsg(res.error); return; }
+    rounds = res.items; save(true); render();
+    ghMsg(`Cargadas ${res.items.length} vueltas de GitHub.` + (res.bad ? ` ${res.bad} filas no válidas.` : ''));
+  }catch(err){ ghMsg('No se pudo cargar: ' + err.message); }
+}
+let ghTimer = null;
+function ghSchedule(){ if(!gh.auto || !gh.token.trim() || !gh.repo.trim()) return; clearTimeout(ghTimer); ghTimer = setTimeout(ghPush, 1500); }
+function ghInit(){
+  ghLoadCfg();
+  document.getElementById('ghRepo').value = gh.repo;
+  document.getElementById('ghPath').value = gh.path;
+  document.getElementById('ghToken').value = gh.token;
+  document.getElementById('ghAuto').checked = gh.auto;
+  const bind = (id, k, prop) => document.getElementById(id).addEventListener('change', e => { gh[k] = e.target[prop]; ghSaveCfg(); });
+  bind('ghRepo','repo','value'); bind('ghPath','path','value'); bind('ghToken','token','value'); bind('ghAuto','auto','checked');
+  document.getElementById('ghPush').addEventListener('click', () => { ['ghRepo','ghPath','ghToken'].forEach(i => document.getElementById(i).dispatchEvent(new Event('change'))); ghPush(); });
+  document.getElementById('ghPull').addEventListener('click', e => armConfirm(e.currentTarget, 'Pulsa otra vez: reemplaza los datos de este dispositivo', ghPull));
+  if(!rounds.length && gh.repo.trim()) ghPull();   // dispositivo nuevo: trae los datos del repositorio
+}
+
 document.querySelector('.tabs').addEventListener('click', e => {
   const t = e.target.dataset && e.target.dataset.tab; if(!t) return;
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
   ['vueltas','hcp','sace'].forEach(n => { document.getElementById('v-' + n).hidden = n !== t; });
 });
 
-load(); render();
+load(); render(); ghInit();
 </script>
 </body>
 </html>
