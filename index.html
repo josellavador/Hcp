@@ -93,7 +93,7 @@
 <div id="v-vueltas">
 <section class="card">
   <h2>Nueva vuelta</h2>
-  <form id="f" autocomplete="off">
+  <form id="f" autocomplete="off" novalidate>
     <label>Federación <input name="federacion" value="RFEG" required></label>
     <label>Fecha <input name="fecha" type="date" required></label>
     <label class="wide">Torneo <input name="torneo" required></label>
@@ -221,7 +221,7 @@ function load(){ try{ rounds = JSON.parse(localStorage.getItem(KEY)) || []; }cat
   }); }
 function save(skipRemote){ try{ localStorage.setItem(KEY, JSON.stringify(rounds)); }catch(e){ showMsg('No se pudo guardar en este navegador. Exporta el CSV.'); }
   if(!skipRemote){ ghState.dirty = true; ghSaveState(); ghSchedule(); } }
-function showMsg(t){ document.getElementById('msg').textContent = t || ''; }
+function showMsg(t, ok){ const m = document.getElementById('msg'); m.textContent = t || ''; m.style.color = ok ? 'var(--green)' : ''; }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDate = iso => iso ? iso.split('-').reverse().join('/') : '';
 const num = x => (x === '' || x == null) ? NaN : Number(String(x).replace(',', '.'));
@@ -353,12 +353,17 @@ form.addEventListener('input', () => {
 form.addEventListener('submit', e => {
   e.preventDefault(); showMsg('');
   const v = readForm();
-  if(!v.fecha || !v.torneo || !Number.isFinite(v.neto) || !validNums(v)){ showMsg('Revisa los campos: hay datos vacíos o no numéricos.'); return; }
+  const falta = [[!v.fecha,'Fecha'],[!v.torneo,'Torneo'],[!Number.isFinite(v.neto),'Neto HCP'],[!Number.isFinite(v.bruto),'Bruto'],[!Number.isFinite(v.cr),'Valor Campo'],[!(v.slope > 0),'Slope']].filter(x => x[0]).map(x => x[1]);
+  if(falta.length){ showMsg('Falta o no es válido: ' + falta.join(', ') + '.'); return; }
+  let done = 'Vuelta guardada.', wasEdit = false;
   if(editingId){
     const i = rounds.findIndex(r => r.id === editingId);
-    if(i >= 0) rounds[i] = { id: editingId, ...v, ...calc(v) };
+    if(i < 0){ showMsg('No encuentro esa vuelta: los datos se recargaron. Pulsa Editar de nuevo.'); return; }
+    rounds[i] = { id: editingId, ...v, ...calc(v) }; done = 'Vuelta actualizada.'; wasEdit = true;
   } else rounds.push({ id: Date.now() + Math.random().toString(36).slice(2,6), ...v, ...calc(v) });
-  save(); render(); resetForm(v.federacion); form.fecha.focus();
+  save(); render(); resetForm(v.federacion); showMsg(done, true);
+  if(wasEdit) document.getElementById('roundsTable').scrollIntoView({ behavior:'smooth', block:'start' });
+  else form.fecha.focus();
 });
 
 let editingId = null;
@@ -492,6 +497,8 @@ function rowsFromCSV(text){
     if(!excel && v.cuenta && r.sace == null){ const fs = num(g('sace')); if(Number.isFinite(fs)) r.sace = fs; }
     items.push(r);
   });
+  const seen = {};   // id estable (según el contenido): así Editar sigue valiendo aunque los datos se recarguen
+  items.forEach(r => { const k = rKey(r); seen[k] = (seen[k] || 0) + 1; r.id = 'r' + hashStr(k) + (seen[k] > 1 ? '-' + seen[k] : ''); });
   return { items, bad, why };
 }
 const impMsg = t => { document.getElementById('impMsg').textContent = t; };
@@ -543,7 +550,8 @@ function ghError(status){
   if(status === 403 || status === 404) return 'sin acceso: revisa el nombre del repositorio y que el token tenga Contents: Read and write';
   return 'GitHub respondió ' + status;
 }
-const APP_VERSION = '15-nov-2026 · v17';
+const APP_VERSION = '15-nov-2026 · v18';
+const hashStr = t => { let h = 5381; for(let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 const rKey = r => [r.fecha, r.torneo.toLowerCase(), r.neto, r.bruto].join('|');
 // Estado de sincronización de ESTE dispositivo: versión del archivo que vio por última vez y si hay cambios sin subir
 const ghState = { sha:'', dirty:false };
