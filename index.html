@@ -73,8 +73,8 @@
 </style>
 </head>
 <body>
-<h1>Control HCP de golf</h1>
-<p class="sub">Registra tus vueltas. HCP Bruto y SACE se calculan solos.</p>
+<h1>Handicap de golf</h1>
+<p class="sub">Registra tus vueltas. HCP Bruto y SACE se calculan solos. <span id="ver" style="white-space:nowrap"></span></p>
 
 <section class="card" aria-live="polite">
   <div class="index">
@@ -152,9 +152,10 @@
     <div class="actions">
       <button class="primary" id="ghPush" type="button">Guardar ahora en GitHub</button>
       <button class="ghost" id="ghPull" type="button">Cargar de GitHub</button>
+      <button class="ghost" id="ghDiag" type="button">Diagnóstico</button>
     </div>
   </form>
-  <p class="note" id="ghMsg" role="status"></p>
+  <p class="note" id="ghMsg" role="status" style="white-space:pre-line"></p>
   <details class="note"><summary>Cómo crear el token</summary>
     <ol>
       <li>En github.com: tu foto → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
@@ -542,6 +543,7 @@ function ghError(status){
   if(status === 403 || status === 404) return 'sin acceso: revisa el nombre del repositorio y que el token tenga Contents: Read and write';
   return 'GitHub respondió ' + status;
 }
+const APP_VERSION = '15-nov-2026 · v17';
 const rKey = r => [r.fecha, r.torneo.toLowerCase(), r.neto, r.bruto].join('|');
 // Estado de sincronización de ESTE dispositivo: versión del archivo que vio por última vez y si hay cambios sin subir
 const ghState = { sha:'', dirty:false };
@@ -617,8 +619,39 @@ async function ghPull(){
 }
 // Sincroniza solo: al abrir la app y al volver a ella
 let ghLastSync = 0;
+// Auto-actualización: el icono de la pantalla de inicio de iOS guarda la página en caché.
+// Si en GitHub hay una versión más nueva, se abre esa (con ?v=... para saltarse la caché).
+let lastUpdateCheck = 0;
+async function checkUpdate(){
+  if(Date.now() - lastUpdateCheck < 60000) return;
+  lastUpdateCheck = Date.now();
+  try{
+    const r = await fetch(location.pathname + '?_=' + Date.now(), { cache:'no-store' });
+    const m = (await r.text()).match(/const APP_VERSION = '([^']+)'/);
+    if(m && m[1] !== APP_VERSION){
+      const u = new URL(location.href);
+      if(u.searchParams.get('v') !== m[1]){ u.searchParams.set('v', m[1]); location.replace(u.toString()); }
+    }
+  }catch(e){}
+}
+async function ghDiag(){
+  const L = [`Versión de la app: ${APP_VERSION}`,
+    `Repositorio: ${gh.repo.trim() || '(vacío)'} · archivo: ${gh.path.trim() || '(vacío)'} · token: ${gh.token.trim() ? 'sí' : 'NO'}`,
+    `En este dispositivo: ${rounds.length} vueltas · versión vista de GitHub: ${ghState.sha ? ghState.sha.slice(0,7) : 'ninguna'} · cambios sin subir: ${ghState.dirty ? 'sí' : 'no'}`];
+  ghMsg(L.join('\n') + '\nComprobando GitHub…');
+  if(gh.repo.trim() && gh.path.trim()){
+    try{
+      const r = await fetch(ghUrl() + '?_=' + Date.now(), { headers:ghHeaders(), cache:'no-store' });
+      if(r.ok){ const j = await r.json(); const res = rowsFromCSV(b64dec(j.content));
+        L.push(`GitHub responde 200: el archivo tiene ${res.items.length} vueltas (versión ${j.sha.slice(0,7)}).`);
+      } else if(r.status === 404) L.push('GitHub responde 404: no existe ese archivo o el nombre del repositorio/archivo está mal escrito.');
+      else L.push(`GitHub responde ${r.status}: ${ghError(r.status)}.`);
+    }catch(e){ L.push('No hay conexión con GitHub: ' + e.message); }
+  } else L.push('Indica el repositorio y el archivo.');
+  ghMsg(L.join('\n'));
+}
 async function ghSync(){
-  if(!gh.repo.trim() || !gh.path.trim()) return;
+  if(!gh.repo.trim() || !gh.path.trim()){ ghMsg('Indica el repositorio (usuario/nombre) y el archivo para sincronizar con GitHub.'); return; }
   ghLastSync = Date.now();
   try{
     ghMsg('Sincronizando…');
@@ -636,6 +669,7 @@ async function ghSync(){
 let ghTimer = null;
 function ghSchedule(){ if(!gh.auto || !gh.token.trim() || !gh.repo.trim()) return; clearTimeout(ghTimer); ghTimer = setTimeout(ghPush, 1500); }
 function ghInit(){
+  document.getElementById('ver').textContent = 'Versión ' + APP_VERSION;
   ghLoadCfg(); ghLoadState();
   if(!ghState.sha && rounds.length) ghState.dirty = true;   // datos de este dispositivo que GitHub aún no conoce
   document.getElementById('ghRepo').value = gh.repo;
@@ -645,10 +679,11 @@ function ghInit(){
   const bind = (id, k, prop) => document.getElementById(id).addEventListener('change', e => { gh[k] = e.target[prop]; ghSaveCfg(); });
   bind('ghRepo','repo','value'); bind('ghPath','path','value'); bind('ghToken','token','value'); bind('ghAuto','auto','checked');
   document.getElementById('ghPush').addEventListener('click', () => { ['ghRepo','ghPath','ghToken'].forEach(i => document.getElementById(i).dispatchEvent(new Event('change'))); ghPush(); });
+  document.getElementById('ghDiag').addEventListener('click', ghDiag);
   document.getElementById('ghPull').addEventListener('click', e => armConfirm(e.currentTarget, 'Pulsa otra vez: reemplaza los datos de este dispositivo', ghPull));
-  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && Date.now() - ghLastSync > 15000) ghSync(); });
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ checkUpdate(); if(Date.now() - ghLastSync > 15000) ghSync(); } });
   window.addEventListener('pageshow', () => { if(Date.now() - ghLastSync > 15000) ghSync(); });
-  ghSync();
+  checkUpdate(); ghSync();
 }
 
 document.querySelector('.tabs').addEventListener('click', e => {
