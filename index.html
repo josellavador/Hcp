@@ -49,7 +49,7 @@
   td button{padding:2px 8px;min-height:28px;font-size:.8rem}
   [hidden]{display:none!important}
   .tabs{display:flex;gap:8px;margin-bottom:16px}
-  .tabs button{flex:1;background:transparent;color:var(--green)}
+  .tabs button{flex:1;padding-inline:6px;background:transparent;color:var(--green)}
   .tabs button[aria-selected="true"]{background:var(--green);color:#fff}
   @media (prefers-color-scheme: dark){ .tabs button[aria-selected="true"]{color:#10201a} }
   .tag{display:inline-block;border-radius:4px;padding:1px 7px;font-size:.78rem;margin-right:4px}
@@ -78,6 +78,7 @@
   <button type="button" role="tab" data-tab="vueltas" aria-selected="true">Vueltas</button>
   <button type="button" role="tab" data-tab="hcp" aria-selected="false">HCP</button>
   <button type="button" role="tab" data-tab="sace" aria-selected="false">SACE</button>
+  <button type="button" role="tab" data-tab="graficas" aria-selected="false">Gráficas</button>
 </div>
 
 <div id="v-vueltas">
@@ -111,7 +112,7 @@
   <div class="tablewrap">
     <table>
       <thead><tr>
-        <th>Federacion</th><th>MES</th><th>Año</th><th>Fecha</th><th>Torneo</th><th>Campo</th>
+        <th>Federacion</th><th>Fecha</th><th>Torneo</th><th>Campo</th>
         <th class="n">Neto HCP</th><th class="n">Bruto</th><th class="n">Valor Campo</th>
         <th class="n">Slope</th><th class="n">ASC</th><th class="n">Diferencial</th><th class="n">HCP Bruto</th><th class="n">HCP Neto</th><th class="n">sace</th><th>Cuenta SACE</th><th></th>
       </tr></thead>
@@ -154,6 +155,11 @@
 </div>
 
 <div id="v-hcp" hidden><section class="card"><h2>HCP: últimas 20 vueltas</h2><div id="hcpView"></div></section></div>
+<div id="v-graficas" hidden>
+  <section class="card"><h2>Evolución del HCP</h2><p class="note" style="margin-top:0">Últimas 20 vueltas (todas), con los golpes Neto.</p><div id="hcpChart"></div></section>
+  <section class="card"><h2>Evolución del HCP SACE</h2><p class="note" style="margin-top:0">Últimas 20 vueltas SACE, con los golpes Bruto.</p><div id="saceChart"></div></section>
+</div>
+
 <div id="v-sace" hidden><section class="card"><h2>SACE: últimas 20 vueltas</h2><div id="saceView"></div></section></div>
 
 <script>
@@ -248,8 +254,13 @@ function renderView(key, id, colName, dec, strokes, strokesLabel){
   let thr = '';
   if(k){
     const asc = [...rem].sort((a,b) => a[key]-b[key]);
-    thr = asc.length < k ? ' Una vuelta nueva entra siempre en la media.'
-      : ` Una vuelta nueva entra en la media si su valor es menor que <b>${fx(asc[k-1][key])}</b>.`;
+    if(asc.length < k) thr = ' Una vuelta nueva entra siempre en la media.';
+    else {
+      const adj = whsRule(Math.min(last.length + 1, 20))[1];
+      const idxIf = asc.slice(0, k).reduce((t, r) => t + r[key], 0) / k + adj;
+      const lab = key === 'sace' ? 'HCP SACE' : 'HCP';
+      thr = ` Una vuelta nueva entra en la media si su valor es menor que <b>${fx(asc[k-1][key])}</b>. Si no la mejora, tu nuevo ${lab} pasaría a ser <b>${fx(idxIf)}</b>.`;
+    }
   }
   el.innerHTML = `<div class="box">${head}</div>
     <div class="box">${next}${thr}</div>
@@ -257,16 +268,48 @@ function renderView(key, id, colName, dec, strokes, strokesLabel){
     <p class="note">Orden de más nuevo a más antiguo: la 1 es la más reciente y la última es la que sale. Las sombreadas son las que hacen la media.</p>`;
 }
 
+/* ---- Gráficas: evolución del índice en las últimas 20 vueltas ---- */
+function renderChart(key, id, label, dec){
+  const el = document.getElementById(id);
+  const fx = dec === 3 ? f3 : f1;
+  const items = [...rounds].sort((a,b) => a.fecha.localeCompare(b.fecha)).filter(r => r[key] != null);
+  const pts = items.map((r,i) => { const c = calcIndex(items.slice(0, i+1), key); return { fecha:r.fecha, val:r[key], idx:c.index === null ? null : c.raw }; }).slice(-20);
+  if(pts.length < 2 || pts.every(p => p.idx === null)){ el.innerHTML = '<p class="empty">Hacen falta al menos 3 vueltas para dibujar la evolución.</p>'; return; }
+  const W = 360, H = 230, L = 40, R = 12, T = 14, B = 30;
+  const all = pts.flatMap(p => p.idx === null ? [p.val] : [p.val, p.idx]);
+  let lo = Math.min(...all), hi = Math.max(...all); if(hi - lo < 1){ lo -= .5; hi += .5; }
+  const pad = (hi - lo) * .08; lo -= pad; hi += pad;
+  const X = i => L + (pts.length === 1 ? 0 : i * (W - L - R) / (pts.length - 1));
+  const Y = v => T + (hi - v) * (H - T - B) / (hi - lo);
+  let g = '';
+  for(let t = 0; t <= 4; t++){
+    const v = lo + (hi - lo) * t / 4, y = Y(v);
+    g += `<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" style="stroke:var(--line)"/><text x="${L-5}" y="${y+4}" text-anchor="end" font-size="10" style="fill:var(--muted)">${f1(v)}</text>`;
+  }
+  const marks = [0, Math.floor((pts.length-1)/2), pts.length-1].filter((v,i,a) => a.indexOf(v) === i);
+  marks.forEach(i => { const d = pts[i].fecha.split('-'); g += `<text x="${X(i)}" y="${H-10}" text-anchor="${i===0?'start':i===pts.length-1?'end':'middle'}" font-size="10" style="fill:var(--muted)">${d[2]}/${d[1]}/${d[0].slice(2)}</text>`; });
+  g += pts.map((p,i) => `<circle cx="${X(i)}" cy="${Y(p.val)}" r="2.5" style="fill:var(--muted);opacity:.45"/>`).join('');
+  let path = '', open = false;
+  pts.forEach((p,i) => { if(p.idx === null){ open = false; return; } path += `${open ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(p.idx).toFixed(1)} `; open = true; });
+  g += `<path d="${path}" fill="none" stroke-width="2.2" stroke-linejoin="round" style="stroke:var(--green)"/>`;
+  g += pts.map((p,i) => p.idx === null ? '' : `<circle cx="${X(i)}" cy="${Y(p.idx)}" r="3" style="fill:var(--green)"/>`).join('');
+  const idxs = pts.filter(p => p.idx !== null).map(p => p.idx), last = idxs[idxs.length-1];
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Evolución de ${label}">${g}</svg>
+    <p class="note"><span style="color:var(--green)">●</span> ${label} tras cada vuelta &nbsp; <span style="opacity:.6">●</span> valor de cada vuelta</p>
+    <div class="box">Ahora: <b>${fx(last)}</b> · Mejor: <b>${fx(Math.min(...idxs))}</b> · Peor: <b>${fx(Math.max(...idxs))}</b> · ${pts.length} vueltas</div>`;
+}
+
 function render(){
   const sorted = [...rounds].sort((a,b) => a.fecha.localeCompare(b.fecha));
   const N = calcIndex(sorted, 'hcpNeto'), S = calcIndex(sorted, 'sace');
   showIdx(N, 'idxN', 'idxNTxt'); showIdx(S, 'idxS', 'idxSTxt', 3);
+  renderChart('hcpNeto', 'hcpChart', 'HCP', 1); renderChart('sace', 'saceChart', 'HCP SACE', 3);
   renderView('hcpNeto', 'hcpView', 'HCP Neto', 1, 'neto', 'Golpes Neto'); renderView('sace', 'saceView', 'SACE', 3, 'bruto', 'Golpes Bruto');
   const tb = document.getElementById('rows');
-  if(!sorted.length){ tb.innerHTML = '<tr><td colspan="17" class="empty">Aún no hay vueltas. Guarda la primera con el formulario.</td></tr>'; return; }
+  if(!sorted.length){ tb.innerHTML = '<tr><td colspan="15" class="empty">Aún no hay vueltas. Guarda la primera con el formulario.</td></tr>'; return; }
   tb.innerHTML = [...sorted].reverse().map(r => `
     <tr class="${S.set.has(r) ? 'best' : ''}">
-      <td>${esc(r.federacion)}</td><td>${MESES[+r.fecha.slice(5,7)-1]}</td><td>${r.fecha.slice(0,4)}</td>
+      <td>${esc(r.federacion)}</td>
       <td>${fmtDate(r.fecha)}</td><td>${esc(r.torneo)}</td><td>${esc(r.campo || '')}</td>
       <td class="n">${r.neto == null ? '–' : r.neto}</td><td class="n">${r.bruto}</td><td class="n">${fmtN(r.cr)}</td>
       <td class="n">${r.slope}</td><td class="n">${Number.isFinite(r.asc) ? r.asc : '–'}</td>
@@ -539,7 +582,7 @@ function ghInit(){
 document.querySelector('.tabs').addEventListener('click', e => {
   const t = e.target.dataset && e.target.dataset.tab; if(!t) return;
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
-  ['vueltas','hcp','sace'].forEach(n => { document.getElementById('v-' + n).hidden = n !== t; });
+  ['vueltas','hcp','sace','graficas'].forEach(n => { document.getElementById('v-' + n).hidden = n !== t; });
 });
 
 load(); render(); ghInit();
