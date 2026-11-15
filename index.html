@@ -44,6 +44,15 @@
   table{border-collapse:collapse;width:100%;font-size:.9rem;white-space:nowrap}
   th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line)}
   th{background:var(--green-soft);font-weight:bold}
+  /* vista resumida: Torneo (3), Bruto (6), HCP Bruto (11), sace (13) y los botones (15) */
+  #roundsTable.compact th:not(:nth-child(3)):not(:nth-child(6)):not(:nth-child(11)):not(:nth-child(13)):not(:nth-child(15)),
+  #roundsTable.compact td:not(:nth-child(3)):not(:nth-child(6)):not(:nth-child(11)):not(:nth-child(13)):not(:nth-child(15)){display:none}
+  #roundsTable.compact td:nth-child(3){white-space:normal;min-width:8em}
+  #roundsTable.compact th:nth-child(6),#roundsTable.compact td:nth-child(6),
+  #roundsTable.compact th:nth-child(11),#roundsTable.compact td:nth-child(11),
+  #roundsTable.compact th:nth-child(13),#roundsTable.compact td:nth-child(13){width:1%;padding-left:4px;padding-right:4px}
+  #roundsTable.compact th{white-space:normal;line-height:1.15}
+  td.min,th.min{width:1%;padding-left:6px;padding-right:6px;text-align:center}
   td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   tr.best td{background:var(--green-soft)}
   td button{padding:2px 8px;min-height:28px;font-size:.8rem}
@@ -108,11 +117,14 @@
 </section>
 
 <section class="card">
-  <h2>Vueltas guardadas</h2>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:.75rem">
+    <h2 style="margin:0">Vueltas guardadas</h2>
+    <button class="ghost" id="compactBtn" type="button" aria-pressed="false">Vista resumida</button>
+  </div>
   <div class="tablewrap">
-    <table>
+    <table id="roundsTable">
       <thead><tr>
-        <th>Federacion</th><th>Fecha</th><th>Torneo</th><th>Campo</th>
+        <th class="min" title="Federación">Fed</th><th>Fecha</th><th>Torneo</th><th>Campo</th>
         <th class="n">Neto HCP</th><th class="n">Bruto</th><th class="n">Valor Campo</th>
         <th class="n">Slope</th><th class="n">ASC</th><th class="n">Diferencial</th><th class="n">HCP Bruto</th><th class="n">HCP Neto</th><th class="n">sace</th><th>Cuenta SACE</th><th></th>
       </tr></thead>
@@ -309,7 +321,7 @@ function render(){
   if(!sorted.length){ tb.innerHTML = '<tr><td colspan="15" class="empty">Aún no hay vueltas. Guarda la primera con el formulario.</td></tr>'; return; }
   tb.innerHTML = [...sorted].reverse().map(r => `
     <tr class="${S.set.has(r) ? 'best' : ''}">
-      <td>${esc(r.federacion)}</td>
+      <td class="min">${esc(r.federacion)}</td>
       <td>${fmtDate(r.fecha)}</td><td>${esc(r.torneo)}</td><td>${esc(r.campo || '')}</td>
       <td class="n">${r.neto == null ? '–' : r.neto}</td><td class="n">${r.bruto}</td><td class="n">${fmtN(r.cr)}</td>
       <td class="n">${r.slope}</td><td class="n">${Number.isFinite(r.asc) ? r.asc : '–'}</td>
@@ -585,6 +597,14 @@ document.querySelector('.tabs').addEventListener('click', e => {
   ['vueltas','hcp','sace','graficas'].forEach(n => { document.getElementById('v-' + n).hidden = n !== t; });
 });
 
+(function(){
+  const t = document.getElementById('roundsTable'), b = document.getElementById('compactBtn');
+  const set = on => { t.classList.toggle('compact', on); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? 'Vista completa' : 'Vista resumida';
+    try{ localStorage.setItem('golf-compact', on ? '1' : '0'); }catch(e){} };
+  b.addEventListener('click', () => set(!t.classList.contains('compact')));
+  let saved = null; try{ saved = localStorage.getItem('golf-compact'); }catch(e){}
+  if(saved === '1') set(true);
+})();
 load(); render(); ghInit();
 </script>
 </body>
