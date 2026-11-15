@@ -57,6 +57,11 @@
   tr.best td{background:var(--green-soft)}
   td button{padding:2px 8px;min-height:28px;font-size:.8rem}
   [hidden]{display:none!important}
+  .savebar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .savebar button{min-height:44px}
+  .savebar button.pending{background:var(--warn);border-color:var(--warn);color:#fff}
+  #ghSaveStatus{font-size:.9rem;color:var(--muted)}
+  #ghSaveStatus.pending{color:var(--warn);font-weight:bold}
   .tabs{display:flex;gap:8px;margin-bottom:16px}
   .tabs button{flex:1;padding-inline:6px;background:transparent;color:var(--green)}
   .tabs button[aria-selected="true"]{background:var(--green);color:#fff}
@@ -75,6 +80,7 @@
 <body>
 <h1>Handicap de golf</h1>
 <p class="sub">Registra tus vueltas. HCP Bruto y SACE se calculan solos. <span id="ver" style="white-space:nowrap"></span></p>
+
 
 <section class="card" aria-live="polite">
   <div class="index">
@@ -141,18 +147,23 @@
   <p class="note">Los datos se guardan en este navegador. Exporta el CSV para tener copia de seguridad o usarlo en otro dispositivo. Sombreadas: las vueltas que cuentan para el HCP SACE.</p>
 </section>
 
+<div class="card savebar">
+  <button class="primary" id="ghSaveTop" type="button">Guardar en GitHub</button>
+  <span id="ghSaveStatus" role="status"></span>
+</div>
+
 <section class="card">
-  <h2>Guardar en GitHub</h2>
-  <p class="note" style="margin-top:0">El archivo de datos queda en tu repositorio. Si el repositorio es público, <b>cualquiera podría verlo</b>. El token se guarda solo en este navegador, nunca en el archivo.</p>
+  <h2>Conexión con GitHub</h2>
+  <p class="note" style="margin-top:0">Al abrir la app se lee el archivo de GitHub; los cambios se suben con el botón <b>Guardar en GitHub</b>. El archivo de datos queda en tu repositorio. Si el repositorio es público, <b>cualquiera podría verlo</b>. El token se guarda solo en este navegador, nunca en el archivo.</p>
   <form id="ghForm" autocomplete="off" style="margin-top:12px">
     <label class="wide">Repositorio (usuario/nombre) <input id="ghRepo" placeholder="josellavador/Hcp"></label>
     <label class="wide">Archivo de datos <input id="ghPath" placeholder="vueltas.csv"></label>
     <label class="wide">Token de GitHub (solo para guardar) <input id="ghToken" type="password" placeholder="github_pat_..."></label>
-    <label class="wide" style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="ghAuto" style="width:auto;min-height:0"> Guardar automáticamente tras cada cambio</label>
     <div class="actions">
-      <button class="primary" id="ghPush" type="button">Guardar ahora en GitHub</button>
+      <button class="primary" id="ghPush" type="button">Guardar en GitHub</button>
       <button class="ghost" id="ghPull" type="button">Cargar de GitHub</button>
       <button class="ghost" id="ghDiag" type="button">Diagnóstico</button>
+      <button class="ghost" id="ghRestore" type="button" hidden>Recuperar copia</button>
     </div>
   </form>
   <p class="note" id="ghMsg" role="status" style="white-space:pre-line"></p>
@@ -220,7 +231,7 @@ function load(){ try{ rounds = JSON.parse(localStorage.getItem(KEY)) || []; }cat
     if(Number.isFinite(r.dif) || !r.cuenta) r.sace = c.sace;
   }); }
 function save(skipRemote){ try{ localStorage.setItem(KEY, JSON.stringify(rounds)); }catch(e){ showMsg('No se pudo guardar en este navegador. Exporta el CSV.'); }
-  if(!skipRemote){ ghState.dirty = true; ghState.t = Date.now(); ghSaveState(); ghSchedule(); } }
+  if(!skipRemote){ ghState.dirty = true; ghSaveState(); updateSaveBar(); } }
 function showMsg(t, ok){ const m = document.getElementById('msg'); m.textContent = t || ''; m.style.color = ok ? 'var(--green)' : ''; }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDate = iso => iso ? iso.split('-').reverse().join('/') : '';
@@ -313,6 +324,7 @@ function renderChart(key, id, label, dec){
 }
 
 function render(){
+  updateSaveBar();
   const sorted = [...rounds].sort((a,b) => a.fecha.localeCompare(b.fecha));
   const N = calcIndex(sorted, 'hcpNeto'), S = calcIndex(sorted, 'sace');
   showIdx(N, 'idxN', 'idxNTxt'); showIdx(S, 'idxS', 'idxSTxt', 3);
@@ -531,9 +543,9 @@ document.getElementById('clr').addEventListener('click', e => {
   armConfirm(e.currentTarget, 'Pulsa otra vez para borrar todo', () => { rounds = []; resetForm(form.federacion.value); save(); render(); });
 });
 
-/* ---- Guardar / cargar en GitHub (API de contenidos) ---- */
+/* ---- GitHub: guardar con un botón y leer el archivo al abrir (API de contenidos) ---- */
 const GH_KEY = 'golf-gh-v1';
-const gh = { repo:'', path:'vueltas.csv', token:'', auto:true };
+const gh = { repo:'', path:'vueltas.csv', token:'' };
 (function inferRepo(){   // en GitHub Pages: usuario.github.io/repo/
   try{ const m = location.hostname.match(/^(.+)\.github\.io$/), p = location.pathname.split('/')[1];
     if(m && p) gh.repo = m[1] + '/' + p; }catch(e){}
@@ -550,18 +562,22 @@ function ghError(status){
   if(status === 403 || status === 404) return 'sin acceso: revisa el nombre del repositorio y que el token tenga Contents: Read and write';
   return 'GitHub respondió ' + status;
 }
-const APP_VERSION = '15-nov-2026 · v19';
+const APP_VERSION = '15-nov-2026 · v22';
 const hashStr = t => { let h = 5381; for(let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 const rKey = r => [r.fecha, r.torneo.toLowerCase(), r.neto, r.bruto].join('|');
-// Estado de sincronización de ESTE dispositivo: versión del archivo que vio por última vez y si hay cambios sin subir
-const ghState = { sha:'', dirty:false, seen:[], base:[], t:0 };
+const hora = () => new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+
+// Estado de ESTE dispositivo: versión del archivo que conoce y si hay cambios sin guardar en GitHub
+const ghState = { sha:'', dirty:false, init:false };
 function ghLoadState(){ try{ Object.assign(ghState, JSON.parse(localStorage.getItem('golf-gh-state')) || {}); }catch(e){} }
 function ghSaveState(){ try{ localStorage.setItem('golf-gh-state', JSON.stringify(ghState)); }catch(e){} }
-// versión del archivo: se recuerdan las anteriores para detectar lecturas antiguas (GitHub a veces devuelve la copia previa justo después de guardar)
-function ghSetSha(sha){ if(ghState.sha && ghState.sha !== sha) ghState.seen = [...(ghState.seen || []), ghState.sha].slice(-20); ghState.sha = sha; }
-function ghMarkSynced(){ ghState.base = rounds.map(rKey); ghState.dirty = false; ghSaveState(); }
-const ghIsStale = cur => !!cur && cur.sha !== ghState.sha && (ghState.seen || []).includes(cur.sha);
-const hora = () => new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+let lastOk = '';
+function updateSaveBar(){
+  const b = document.getElementById('ghSaveTop'), st = document.getElementById('ghSaveStatus');
+  b.classList.toggle('pending', !!ghState.dirty); st.classList.toggle('pending', !!ghState.dirty);
+  st.textContent = ghState.dirty ? '● Cambios sin guardar en GitHub' : (lastOk || 'Sin cambios pendientes');
+}
+const ghBar = t => { document.getElementById('ghSaveStatus').textContent = t; };
 
 async function ghGet(){
   const r = await fetch(ghUrl() + '?_=' + Date.now(), { headers:ghHeaders(), cache:'no-store' });
@@ -569,78 +585,51 @@ async function ghGet(){
   if(!r.ok) throw new Error(ghError(r.status));
   return r.json();
 }
-// Si el archivo de GitHub cambió desde la última vez (otro dispositivo): se carga, o se unen los cambios si aquí también hay cambios
-async function ghMerge(cur){
-  const res = rowsFromCSV(b64dec(cur.content));
-  if(res.error){ ghMsg(res.error); return false; }
-  if(!ghState.dirty){
-    rounds = res.items; ghSetSha(cur.sha); save(true); ghMarkSynced(); render();
-    ghMsg(`Datos actualizados desde GitHub (${res.items.length} vueltas) a las ${hora()}.`);
-    return true;
-  }
-  // Cambios en los dos lados: se parte de lo de GitHub y se aplican los cambios de este dispositivo (añadidas, editadas, borradas)
-  const base = new Set(ghState.base || []), local = new Set(rounds.map(rKey));
-  const removed = new Set([...base].filter(k => !local.has(k)));
-  const merged = res.items.filter(r => !removed.has(rKey(r)));
-  const have = new Set(merged.map(rKey));
-  rounds.forEach(r => { if(!base.has(rKey(r)) && !have.has(rKey(r))){ merged.push(r); have.add(rKey(r)); } });
-  ghState.base = res.items.map(rKey);   // lo que había en GitHub
-  rounds = merged; ghSetSha(cur.sha); save(true); ghSaveState(); render();
-  if(gh.token.trim()) return ghPush();
-  ghMsg('Se combinaron los cambios con GitHub. Falta el token para subirlos.');
-  return false;
-}
-// Carga SIEMPRE la versión de GitHub, descartando lo que hubiera en este dispositivo
-async function ghLoad(cur){
-  const res = rowsFromCSV(b64dec(cur.content));
-  if(res.error){ ghMsg(res.error); return false; }
-  const hadDirty = ghState.dirty;
-  if(hadDirty){ try{ localStorage.setItem('golf-backup-v1', JSON.stringify(rounds)); }catch(e){} }   // por si acaso
-  rounds = res.items; ghSetSha(cur.sha); save(true); ghMarkSynced(); render();
-  ghMsg(`Datos cargados de GitHub (${res.items.length} vueltas) a las ${hora()}.` + (hadDirty ? ' Había cambios sin subir en este dispositivo: se guardó una copia de seguridad.' : ''));
-  return true;
-}
+// GUARDAR: sube todo de una vez
 async function ghPush(){
   if(!gh.repo.trim() || !gh.path.trim()){ ghMsg('Indica repositorio y archivo.'); return false; }
-  if(!gh.token.trim()){ ghMsg('Hay cambios sin subir a GitHub: falta el token.'); return false; }
-  ghMsg('Guardando en GitHub…');
+  if(!gh.token.trim()){ ghMsg('Falta el token de GitHub para guardar.'); ghBar('⚠ Falta el token'); return false; }
+  ghBar('Guardando…'); ghMsg('Guardando en GitHub…');
   try{
-    for(let intento = 0; intento < 2; intento++){
-      const cur = await ghGet();
-      const stale = ghIsStale(cur);   // GitHub devolvió una copia antigua: nos fiamos de la versión que ya conocemos
-      if(cur && !stale && cur.sha !== ghState.sha) return await ghMerge(cur);   // otro dispositivo cambió el archivo: no lo pisamos
-      const sent = buildCSV(rounds), sentKeys = rounds.map(rKey);
+    for(let intento = 0; intento < 3; intento++){
+      const sent = buildCSV(rounds);
+      let sha0 = intento === 0 ? ghState.sha : '';          // la versión que ya conocemos; si falla, se pide la actual
+      if(!sha0){ const cur = await ghGet(); sha0 = cur ? cur.sha : ''; }
       const body = { message:'Actualizar vueltas ' + new Date().toISOString().slice(0,16).replace('T',' '), content:b64enc('\ufeff' + sent) };
-      const sha0 = stale ? ghState.sha : (cur && cur.sha);
       if(sha0) body.sha = sha0;
       const r = await fetch(ghUrl(), { method:'PUT', headers:{ ...ghHeaders(), 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       if(r.ok){
         let j = {}; try{ j = await r.json(); }catch(e){}
-        ghSetSha((j.content && j.content.sha) || '');
-        ghState.base = sentKeys; ghState.t = Date.now(); ghState.dirty = buildCSV(rounds) !== sent; ghSaveState();   // si mientras tanto cambiaste algo, sigue pendiente
-        if(ghState.dirty) ghSchedule();
-        ghMsg('Guardado en GitHub a las ' + hora() + '.'); return true;
+        ghState.sha = (j.content && j.content.sha) || '';
+        ghState.dirty = buildCSV(rounds) !== sent;           // si cambiaste algo mientras se guardaba, sigue pendiente
+        ghSaveState();
+        lastOk = 'Guardado en GitHub a las ' + hora() + ' ✓';
+        ghMsg(`Guardado en GitHub a las ${hora()} (${rounds.length} vueltas).`); updateSaveBar(); return true;
       }
       if(r.status !== 409 && r.status !== 422) throw new Error(ghError(r.status));
     }
-    throw new Error('conflicto al guardar; vuelve a intentarlo');
-  }catch(err){ ghMsg('No se pudo guardar: ' + err.message); return false; }
+    throw new Error('GitHub rechazó el guardado; inténtalo otra vez');
+  }catch(err){ ghMsg('No se pudo guardar: ' + err.message); ghBar('⚠ No se guardó: ' + err.message); return false; }
 }
-// Botón "Cargar de GitHub": reemplaza lo de este dispositivo por el archivo
+// CARGAR: trae el archivo de GitHub y sustituye lo del dispositivo
 async function ghPull(){
-  if(!gh.repo.trim() || !gh.path.trim()){ ghMsg('Indica repositorio y archivo.'); return; }
-  ghMsg('Cargando de GitHub…');
+  if(!gh.repo.trim() || !gh.path.trim()){ ghMsg('Indica el repositorio (usuario/nombre) y el archivo.'); return; }
+  ghBar('Cargando de GitHub…'); ghMsg('Cargando de GitHub…');
   try{
     const cur = await ghGet();
-    if(!cur){ ghMsg('Todavía no existe ' + gh.path + ' en el repositorio. Pulsa "Guardar ahora" para crearlo.'); return; }
+    if(!cur){
+      if(rounds.length){ ghState.dirty = true; ghSaveState(); }   // hay datos que GitHub aún no tiene
+      ghMsg('Todavía no existe ' + gh.path + ' en el repositorio. Pulsa "Guardar en GitHub" para crearlo.'); updateSaveBar(); return; }
     const res = rowsFromCSV(b64dec(cur.content));
-    if(res.error){ ghMsg(res.error); return; }
-    rounds = res.items; ghSetSha(cur.sha); save(true); ghMarkSynced(); render();
-    ghMsg(`Cargadas ${res.items.length} vueltas de GitHub.` + (res.bad ? ` ${res.bad} filas no válidas.` : ''));
-  }catch(err){ ghMsg('No se pudo cargar: ' + err.message); }
+    if(res.error){ ghMsg(res.error); updateSaveBar(); return; }
+    let backedUp = false;   // si en el dispositivo había datos distintos, se guarda una copia por si acaso
+    if((ghState.dirty || !ghState.init) && rounds.length && buildCSV(rounds) !== buildCSV(res.items)){
+      try{ localStorage.setItem('golf-backup-v1', JSON.stringify(rounds)); backedUp = true; }catch(e){} }
+    rounds = res.items; ghState.sha = cur.sha; ghState.dirty = false; ghState.init = true; save(true); ghSaveState(); updateRestore();
+    lastOk = 'Cargado de GitHub a las ' + hora(); render();
+    ghMsg(`Cargadas ${res.items.length} vueltas de GitHub a las ${hora()}.` + (res.bad ? ` ${res.bad} filas no válidas.` : '') + (backedUp ? ' Había datos distintos en este dispositivo: se guardó una copia (botón "Recuperar copia").' : ''));
+  }catch(err){ ghMsg('No se pudo cargar de GitHub (se muestran los datos de este dispositivo): ' + err.message); updateSaveBar(); }
 }
-// Sincroniza solo: al abrir la app y al volver a ella
-let ghLastSync = 0;
 // Auto-actualización: el icono de la pantalla de inicio de iOS guarda la página en caché.
 // Si en GitHub hay una versión más nueva, se abre esa (con ?v=... para saltarse la caché).
 let lastUpdateCheck = 0;
@@ -659,55 +648,46 @@ async function checkUpdate(){
 async function ghDiag(){
   const L = [`Versión de la app: ${APP_VERSION}`,
     `Repositorio: ${gh.repo.trim() || '(vacío)'} · archivo: ${gh.path.trim() || '(vacío)'} · token: ${gh.token.trim() ? 'sí' : 'NO'}`,
-    `En este dispositivo: ${rounds.length} vueltas · versión vista de GitHub: ${ghState.sha ? ghState.sha.slice(0,7) : 'ninguna'} · cambios sin subir: ${ghState.dirty ? 'sí' : 'no'}`];
+    `En este dispositivo: ${rounds.length} vueltas · cambios sin guardar: ${ghState.dirty ? 'sí' : 'no'}`];
   ghMsg(L.join('\n') + '\nComprobando GitHub…');
   if(gh.repo.trim() && gh.path.trim()){
     try{
       const r = await fetch(ghUrl() + '?_=' + Date.now(), { headers:ghHeaders(), cache:'no-store' });
       if(r.ok){ const j = await r.json(); const res = rowsFromCSV(b64dec(j.content));
-        L.push(`GitHub responde 200: el archivo tiene ${res.items.length} vueltas (versión ${j.sha.slice(0,7)}).`);
+        L.push(`GitHub responde 200: el archivo tiene ${res.items.length} vueltas.`);
       } else if(r.status === 404) L.push('GitHub responde 404: no existe ese archivo o el nombre del repositorio/archivo está mal escrito.');
       else L.push(`GitHub responde ${r.status}: ${ghError(r.status)}.`);
     }catch(e){ L.push('No hay conexión con GitHub: ' + e.message); }
   } else L.push('Indica el repositorio y el archivo.');
   ghMsg(L.join('\n'));
 }
-async function ghSync(){
-  if(!gh.repo.trim() || !gh.path.trim()){ ghMsg('Indica el repositorio (usuario/nombre) y el archivo para sincronizar con GitHub.'); return; }
-  ghLastSync = Date.now();
-  try{
-    ghMsg('Sincronizando…');
-    const cur = await ghGet();
-    if(!cur){
-      if(rounds.length && gh.token.trim()) await ghPush();
-      else ghMsg(rounds.length ? 'El archivo aún no existe en GitHub. Falta el token para crearlo.' : 'Todavía no existe el archivo en GitHub.');
-      return;
-    }
-    if(ghState.dirty && gh.token.trim()){ await ghPush(); return; }   // primero sube lo pendiente (une si otro dispositivo cambió el archivo)
-    if(Date.now() - (ghState.t || 0) < 30000 && rounds.length){ ghMsg('Guardado hace un momento.'); return; }   // no leer justo tras guardar
-    if(ghIsStale(cur)){ ghMsg('Sincronizado con GitHub a las ' + hora() + '.'); return; }   // copia antigua: se ignora
-    if(cur.sha !== ghState.sha || ghState.dirty || !rounds.length){ await ghLoad(cur); return; }   // si no, manda GitHub
-    ghMsg('Sincronizado con GitHub a las ' + hora() + '.');
-  }catch(err){ ghMsg('No se pudo sincronizar: ' + err.message); }
-}
-let ghTimer = null;
-function ghSchedule(){ if(!gh.auto || !gh.token.trim() || !gh.repo.trim()) return; clearTimeout(ghTimer); ghTimer = setTimeout(ghPush, 1500); }
+function updateRestore(){ let has = false; try{ has = !!localStorage.getItem('golf-backup-v1'); }catch(e){} document.getElementById('ghRestore').hidden = !has; }
 function ghInit(){
   document.getElementById('ver').textContent = 'Versión ' + APP_VERSION;
   ghLoadCfg(); ghLoadState();
-  if(!ghState.sha && rounds.length) ghState.dirty = true;   // datos de este dispositivo que GitHub aún no conoce
   document.getElementById('ghRepo').value = gh.repo;
   document.getElementById('ghPath').value = gh.path;
   document.getElementById('ghToken').value = gh.token;
-  document.getElementById('ghAuto').checked = gh.auto;
-  const bind = (id, k, prop) => document.getElementById(id).addEventListener('change', e => { gh[k] = e.target[prop]; ghSaveCfg(); });
-  bind('ghRepo','repo','value'); bind('ghPath','path','value'); bind('ghToken','token','value'); bind('ghAuto','auto','checked');
-  document.getElementById('ghPush').addEventListener('click', () => { ['ghRepo','ghPath','ghToken'].forEach(i => document.getElementById(i).dispatchEvent(new Event('change'))); ghPush(); });
+  const bind = (id, k) => document.getElementById(id).addEventListener('change', e => { gh[k] = e.target.value; ghSaveCfg(); });
+  bind('ghRepo','repo'); bind('ghPath','path'); bind('ghToken','token');
+  const save2 = () => { ['ghRepo','ghPath','ghToken'].forEach(i => document.getElementById(i).dispatchEvent(new Event('change'))); ghPush(); };
+  document.getElementById('ghPush').addEventListener('click', save2);
+  document.getElementById('ghSaveTop').addEventListener('click', save2);
   document.getElementById('ghDiag').addEventListener('click', ghDiag);
+  document.getElementById('ghRestore').addEventListener('click', e => armConfirm(e.currentTarget, 'Pulsa otra vez: reemplaza los datos actuales', () => {
+    try{ const b = JSON.parse(localStorage.getItem('golf-backup-v1'));
+      if(Array.isArray(b)){ rounds = b; save(); render(); ghMsg(`Copia recuperada (${b.length} vueltas). Pulsa "Guardar en GitHub" para subirla.`); }
+    }catch(err){ ghMsg('No se pudo leer la copia.'); } }));
   document.getElementById('ghPull').addEventListener('click', e => armConfirm(e.currentTarget, 'Pulsa otra vez: reemplaza los datos de este dispositivo', ghPull));
-  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ checkUpdate(); if(Date.now() - ghLastSync > 15000) ghSync(); } });
-  window.addEventListener('pageshow', () => { if(Date.now() - ghLastSync > 15000) ghSync(); });
-  checkUpdate(); ghSync();
+  updateSaveBar(); updateRestore(); checkUpdate();
+  ghPull();   // al abrir, se lee SIEMPRE el archivo de GitHub
+  // al volver a la app tras un rato (más de 5 min), se vuelve a leer, si no hay cambios pendientes
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'hidden'){ hiddenAt = Date.now(); return; }
+    checkUpdate();
+    if(hiddenAt && Date.now() - hiddenAt > 300000 && !ghState.dirty) ghPull();
+  });
 }
 
 document.querySelector('.tabs').addEventListener('click', e => {
