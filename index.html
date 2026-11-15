@@ -62,6 +62,8 @@
   .savebar button.pending{background:var(--warn);border-color:var(--warn);color:#fff}
   #ghSaveStatus{font-size:.9rem;color:var(--muted)}
   #ghSaveStatus.pending{color:var(--warn);font-weight:bold}
+  .pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;font-size:.9rem;color:var(--muted)}
+  .pager button:disabled{opacity:.4;cursor:default}
   .tabs{display:flex;gap:8px;margin-bottom:16px}
   .tabs button{flex:1;padding-inline:6px;background:transparent;color:var(--green)}
   .tabs button[aria-selected="true"]{background:var(--green);color:#fff}
@@ -136,6 +138,11 @@
       </tr></thead>
       <tbody id="rows"></tbody>
     </table>
+  </div>
+  <div class="pager" id="pager" hidden>
+    <button class="ghost" id="pgPrev" type="button">‹ Anterior</button>
+    <span id="pgInfo" role="status"></span>
+    <button class="ghost" id="pgNext" type="button">Siguiente ›</button>
   </div>
   <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
     <button class="ghost" id="exp" type="button">Exportar CSV</button>
@@ -323,6 +330,8 @@ function renderChart(key, id, label, dec){
     <div class="box">Ahora: <b>${fx(last)}</b> · Mejor: <b>${fx(Math.min(...idxs))}</b> · Peor: <b>${fx(Math.max(...idxs))}</b> · ${pts.length} vueltas</div>`;
 }
 
+const PAGE_SIZE = 30;
+let page = 1;
 function render(){
   updateSaveBar();
   const sorted = [...rounds].sort((a,b) => a.fecha.localeCompare(b.fecha));
@@ -331,8 +340,15 @@ function render(){
   renderChart('hcpNeto', 'hcpChart', 'HCP', 1); renderChart('sace', 'saceChart', 'HCP SACE', 3);
   renderView('hcpNeto', 'hcpView', 'HCP Neto', 1, 'neto', 'Golpes Neto'); renderView('sace', 'saceView', 'SACE', 3, 'bruto', 'Golpes Bruto');
   const tb = document.getElementById('rows');
+  const all = [...sorted].reverse();   // más recientes primero
+  const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+  if(page > pages) page = pages; if(page < 1) page = 1;
+  document.getElementById('pager').hidden = all.length <= PAGE_SIZE;
+  document.getElementById('pgInfo').textContent = `Página ${page} de ${pages} · ${all.length} vueltas`;
+  document.getElementById('pgPrev').disabled = page <= 1;
+  document.getElementById('pgNext').disabled = page >= pages;
   if(!sorted.length){ tb.innerHTML = '<tr><td colspan="15" class="empty">Aún no hay vueltas. Guarda la primera con el formulario.</td></tr>'; return; }
-  tb.innerHTML = [...sorted].reverse().map(r => `
+  tb.innerHTML = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(r => `
     <tr class="${S.set.has(r) ? 'best' : ''}">
       <td class="min">${esc(r.federacion)}</td>
       <td>${fmtDate(r.fecha)}</td><td>${esc(r.torneo)}</td><td>${esc(r.campo || '')}</td>
@@ -562,7 +578,7 @@ function ghError(status){
   if(status === 403 || status === 404) return 'sin acceso: revisa el nombre del repositorio y que el token tenga Contents: Read and write';
   return 'GitHub respondió ' + status;
 }
-const APP_VERSION = '15-nov-2026 · v22';
+const APP_VERSION = '15-nov-2026 · v23';
 const hashStr = t => { let h = 5381; for(let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 const rKey = r => [r.fecha, r.torneo.toLowerCase(), r.neto, r.bruto].join('|');
 const hora = () => new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
@@ -625,7 +641,7 @@ async function ghPull(){
     let backedUp = false;   // si en el dispositivo había datos distintos, se guarda una copia por si acaso
     if((ghState.dirty || !ghState.init) && rounds.length && buildCSV(rounds) !== buildCSV(res.items)){
       try{ localStorage.setItem('golf-backup-v1', JSON.stringify(rounds)); backedUp = true; }catch(e){} }
-    rounds = res.items; ghState.sha = cur.sha; ghState.dirty = false; ghState.init = true; save(true); ghSaveState(); updateRestore();
+    page = 1; rounds = res.items; ghState.sha = cur.sha; ghState.dirty = false; ghState.init = true; save(true); ghSaveState(); updateRestore();
     lastOk = 'Cargado de GitHub a las ' + hora(); render();
     ghMsg(`Cargadas ${res.items.length} vueltas de GitHub a las ${hora()}.` + (res.bad ? ` ${res.bad} filas no válidas.` : '') + (backedUp ? ' Había datos distintos en este dispositivo: se guardó una copia (botón "Recuperar copia").' : ''));
   }catch(err){ ghMsg('No se pudo cargar de GitHub (se muestran los datos de este dispositivo): ' + err.message); updateSaveBar(); }
@@ -696,6 +712,11 @@ document.querySelector('.tabs').addEventListener('click', e => {
   ['vueltas','hcp','sace','graficas'].forEach(n => { document.getElementById('v-' + n).hidden = n !== t; });
 });
 
+(function(){   // paginación: de 30 en 30
+  const go = d => { page += d; render(); document.getElementById('roundsTable').scrollIntoView({ block:'start' }); };
+  document.getElementById('pgPrev').addEventListener('click', () => go(-1));
+  document.getElementById('pgNext').addEventListener('click', () => go(1));
+})();
 (function(){
   const t = document.getElementById('roundsTable'), b = document.getElementById('compactBtn');
   const set = on => { t.classList.toggle('compact', on); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? 'Vista completa' : 'Vista resumida';
