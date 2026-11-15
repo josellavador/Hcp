@@ -219,7 +219,7 @@ function load(){ try{ rounds = JSON.parse(localStorage.getItem(KEY)) || []; }cat
     if(Number.isFinite(r.dif) || !r.cuenta) r.sace = c.sace;
   }); }
 function save(skipRemote){ try{ localStorage.setItem(KEY, JSON.stringify(rounds)); }catch(e){ showMsg('No se pudo guardar en este navegador. Exporta el CSV.'); }
-  if(!skipRemote) ghSchedule(); }
+  if(!skipRemote){ ghState.dirty = true; ghSaveState(); ghSchedule(); } }
 function showMsg(t){ document.getElementById('msg').textContent = t || ''; }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDate = iso => iso ? iso.split('-').reverse().join('/') : '';
@@ -542,28 +542,67 @@ function ghError(status){
   if(status === 403 || status === 404) return 'sin acceso: revisa el nombre del repositorio y que el token tenga Contents: Read and write';
   return 'GitHub respondió ' + status;
 }
+const rKey = r => [r.fecha, r.torneo.toLowerCase(), r.neto, r.bruto].join('|');
+// Estado de sincronización de ESTE dispositivo: versión del archivo que vio por última vez y si hay cambios sin subir
+const ghState = { sha:'', dirty:false };
+function ghLoadState(){ try{ Object.assign(ghState, JSON.parse(localStorage.getItem('golf-gh-state')) || {}); }catch(e){} }
+function ghSaveState(){ try{ localStorage.setItem('golf-gh-state', JSON.stringify(ghState)); }catch(e){} }
+const hora = () => new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+
 async function ghGet(){
-  const r = await fetch(ghUrl(), { headers:ghHeaders(), cache:'no-store' });
+  const r = await fetch(ghUrl() + '?_=' + Date.now(), { headers:ghHeaders(), cache:'no-store' });
   if(r.status === 404) return null;
   if(!r.ok) throw new Error(ghError(r.status));
   return r.json();
 }
+// Si el archivo de GitHub cambió desde la última vez (otro dispositivo): se carga, o se unen los cambios si aquí también hay cambios
+async function ghMerge(cur){
+  const res = rowsFromCSV(b64dec(cur.content));
+  if(res.error){ ghMsg(res.error); return false; }
+  if(!ghState.dirty){
+    rounds = res.items; ghState.sha = cur.sha; save(true); ghSaveState(); render();
+    ghMsg(`Datos actualizados desde GitHub (${res.items.length} vueltas) a las ${hora()}.`);
+    return true;
+  }
+  const have = new Set(res.items.map(rKey)); let extra = 0;
+  rounds.forEach(r => { if(!have.has(rKey(r))){ res.items.push(r); extra++; } });
+  rounds = res.items; ghState.sha = cur.sha; save(true); ghSaveState(); render();
+  if(gh.token.trim()) return ghPush();
+  ghMsg(`Se unieron los datos de GitHub con ${extra} vueltas de este dispositivo. Falta el token para subirlos.`);
+  return false;
+}
+// Carga SIEMPRE la versión de GitHub, descartando lo que hubiera en este dispositivo
+async function ghLoad(cur){
+  const res = rowsFromCSV(b64dec(cur.content));
+  if(res.error){ ghMsg(res.error); return false; }
+  const hadDirty = ghState.dirty;
+  if(hadDirty){ try{ localStorage.setItem('golf-backup-v1', JSON.stringify(rounds)); }catch(e){} }   // por si acaso
+  rounds = res.items; ghState.sha = cur.sha; ghState.dirty = false; save(true); ghSaveState(); render();
+  ghMsg(`Datos cargados de GitHub (${res.items.length} vueltas) a las ${hora()}.` + (hadDirty ? ' Había cambios sin subir en este dispositivo: se guardó una copia de seguridad.' : ''));
+  return true;
+}
 async function ghPush(){
   if(!gh.repo.trim() || !gh.path.trim()){ ghMsg('Indica repositorio y archivo.'); return false; }
-  if(!gh.token.trim()){ ghMsg('Falta el token para poder guardar.'); return false; }
+  if(!gh.token.trim()){ ghMsg('Hay cambios sin subir a GitHub: falta el token.'); return false; }
   ghMsg('Guardando en GitHub…');
   try{
     for(let intento = 0; intento < 2; intento++){
       const cur = await ghGet();
+      if(cur && cur.sha !== ghState.sha) return await ghMerge(cur);   // otro dispositivo cambió el archivo: no lo pisamos
       const body = { message:'Actualizar vueltas ' + new Date().toISOString().slice(0,16).replace('T',' '), content:b64enc('\ufeff' + buildCSV(rounds)) };
       if(cur && cur.sha) body.sha = cur.sha;
       const r = await fetch(ghUrl(), { method:'PUT', headers:{ ...ghHeaders(), 'Content-Type':'application/json' }, body:JSON.stringify(body) });
-      if(r.ok){ ghMsg('Guardado en GitHub a las ' + new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' }) + '.'); return true; }
+      if(r.ok){
+        let j = {}; try{ j = await r.json(); }catch(e){}
+        ghState.sha = (j.content && j.content.sha) || ''; ghState.dirty = false; ghSaveState();
+        ghMsg('Guardado en GitHub a las ' + hora() + '.'); return true;
+      }
       if(r.status !== 409 && r.status !== 422) throw new Error(ghError(r.status));
     }
     throw new Error('conflicto al guardar; vuelve a intentarlo');
   }catch(err){ ghMsg('No se pudo guardar: ' + err.message); return false; }
 }
+// Botón "Cargar de GitHub": reemplaza lo de este dispositivo por el archivo
 async function ghPull(){
   if(!gh.repo.trim() || !gh.path.trim()){ ghMsg('Indica repositorio y archivo.'); return; }
   ghMsg('Cargando de GitHub…');
@@ -572,14 +611,33 @@ async function ghPull(){
     if(!cur){ ghMsg('Todavía no existe ' + gh.path + ' en el repositorio. Pulsa "Guardar ahora" para crearlo.'); return; }
     const res = rowsFromCSV(b64dec(cur.content));
     if(res.error){ ghMsg(res.error); return; }
-    rounds = res.items; save(true); render();
+    rounds = res.items; ghState.sha = cur.sha; ghState.dirty = false; save(true); ghSaveState(); render();
     ghMsg(`Cargadas ${res.items.length} vueltas de GitHub.` + (res.bad ? ` ${res.bad} filas no válidas.` : ''));
   }catch(err){ ghMsg('No se pudo cargar: ' + err.message); }
+}
+// Sincroniza solo: al abrir la app y al volver a ella
+let ghLastSync = 0;
+async function ghSync(){
+  if(!gh.repo.trim() || !gh.path.trim()) return;
+  ghLastSync = Date.now();
+  try{
+    ghMsg('Sincronizando…');
+    const cur = await ghGet();
+    if(!cur){
+      if(rounds.length && gh.token.trim()) await ghPush();
+      else ghMsg(rounds.length ? 'El archivo aún no existe en GitHub. Falta el token para crearlo.' : 'Todavía no existe el archivo en GitHub.');
+      return;
+    }
+    if(ghState.dirty && gh.token.trim()){ await ghPush(); return; }   // primero sube lo pendiente (une si otro dispositivo cambió el archivo)
+    if(cur.sha !== ghState.sha || ghState.dirty || !rounds.length){ await ghLoad(cur); return; }   // si no, manda GitHub
+    ghMsg('Sincronizado con GitHub a las ' + hora() + '.');
+  }catch(err){ ghMsg('No se pudo sincronizar: ' + err.message); }
 }
 let ghTimer = null;
 function ghSchedule(){ if(!gh.auto || !gh.token.trim() || !gh.repo.trim()) return; clearTimeout(ghTimer); ghTimer = setTimeout(ghPush, 1500); }
 function ghInit(){
-  ghLoadCfg();
+  ghLoadCfg(); ghLoadState();
+  if(!ghState.sha && rounds.length) ghState.dirty = true;   // datos de este dispositivo que GitHub aún no conoce
   document.getElementById('ghRepo').value = gh.repo;
   document.getElementById('ghPath').value = gh.path;
   document.getElementById('ghToken').value = gh.token;
@@ -588,7 +646,9 @@ function ghInit(){
   bind('ghRepo','repo','value'); bind('ghPath','path','value'); bind('ghToken','token','value'); bind('ghAuto','auto','checked');
   document.getElementById('ghPush').addEventListener('click', () => { ['ghRepo','ghPath','ghToken'].forEach(i => document.getElementById(i).dispatchEvent(new Event('change'))); ghPush(); });
   document.getElementById('ghPull').addEventListener('click', e => armConfirm(e.currentTarget, 'Pulsa otra vez: reemplaza los datos de este dispositivo', ghPull));
-  if(!rounds.length && gh.repo.trim()) ghPull();   // dispositivo nuevo: trae los datos del repositorio
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && Date.now() - ghLastSync > 15000) ghSync(); });
+  window.addEventListener('pageshow', () => { if(Date.now() - ghLastSync > 15000) ghSync(); });
+  ghSync();
 }
 
 document.querySelector('.tabs').addEventListener('click', e => {
