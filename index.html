@@ -76,8 +76,9 @@
   tr.old td{border-top:2px solid var(--warn)}
   .empty{color:var(--muted);padding:16px;text-align:center}
   .note{color:var(--muted);font-size:.85rem;margin-top:8px}
-  .box.hl{background:var(--green);color:#fff}
-  @media (prefers-color-scheme: dark){ .box.hl{color:#10201a} }
+  .box.azul{background:#1f4f8f;color:#fff}
+  .box.rojo{background:#a33a2a;color:#fff}
+  @media (prefers-color-scheme: dark){ .box.azul{background:#7fb2ee;color:#0d1a2b} .box.rojo{background:#ee8f7e;color:#2b0f0a} }
   @media (prefers-reduced-motion: no-preference){ button{transition:opacity .15s} button:hover{opacity:.85} }
 </style>
 </head>
@@ -197,8 +198,6 @@
 <div id="v-sace" hidden><section class="card"><h2>SACE: últimas 20 vueltas</h2><div id="saceView"></div></section></div>
 
 <div id="v-medias" hidden><section class="card"><h2>Medias: últimas 20 vueltas SACE</h2>
-  <label style="margin-bottom:12px">Segunda media: nº de mejores vueltas a usar
-    <input id="quitarN" type="number" min="1" max="20" step="1" value="15" inputmode="numeric"></label>
   <div id="mediasView"></div></section></div>
 
 <script>
@@ -308,11 +307,11 @@ function renderView(key, id, colName, dec, strokes, strokesLabel){
 }
 
 /* ---- Medias de las últimas 20 vueltas SACE: golpes Bruto, Valor Campo y Slope ---- */
-function mediasBloque(rows, titulo){
+function mediasBloque(rows, titulo, color){
   const avg = k => { const v = rows.map(r => r[k]).filter(Number.isFinite); return v.length ? v.reduce((t,x) => t + x, 0) / v.length : null; };
   const b = avg('bruto'), c = avg('cr'), s = avg('slope');
   const item = (lab, v) => `<div><div class="txt">${lab}</div><span class="num">${v == null ? '–' : f1(v)}</span></div>`;
-  return `<div class="box hl">${titulo}</div>
+  return `<div class="box ${color}">${titulo}</div>
     <div class="index" style="gap:24px;margin:16px 0">${item('Golpes Bruto', b)}${item('Valor Campo', c)}${item('Slope', s)}</div>
     ${b != null && c != null ? `<div class="box">Estás de media a <b>${f1(b - c)}</b> golpes por encima de un jugador top (scratch) por vuelta: Bruto menos Valor Campo.</div>` : ''}`;
 }
@@ -320,14 +319,17 @@ function renderMedias(){
   const el = document.getElementById('mediasView');
   const last = [...rounds].sort((a,b) => a.fecha.localeCompare(b.fecha)).filter(r => r.sace != null).slice(-20);
   if(!last.length){ el.innerHTML = '<p class="empty">Aún no hay vueltas SACE.</p>'; return; }
-  let n = parseInt(document.getElementById('quitarN').value, 10);
+  const prev = document.getElementById('quitarN');
+  let n = prev ? parseInt(prev.value, 10) : 15;
   if(!Number.isFinite(n) || n < 1) n = 15;
   if(n > last.length) n = last.length;
-  let html = mediasBloque(last, `Media de las <b>${last.length}</b> últimas vueltas SACE, del ${fmtDate(last[0].fecha)} al ${fmtDate(last[last.length-1].fecha)}.`);
+  const nVal = prev ? prev.value : '15';
+  let html = mediasBloque(last, `Media de las <b>${last.length}</b> últimas vueltas SACE, del ${fmtDate(last[0].fecha)} al ${fmtDate(last[last.length-1].fecha)}.`, 'azul');
+  html += `<label style="margin:16px 0">Segunda media: nº de mejores vueltas a usar
+    <input id="quitarN" type="number" min="1" max="20" step="1" value="${nVal}" inputmode="numeric"></label>`;
   if(n < last.length){
     const mejores = [...last].sort((a,b) => a.sace - b.sace).slice(0, n);   // las n con mejor SACE (valor más bajo)
-    html += '<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">'
-      + mediasBloque(mejores, `Media de las <b>${n}</b> mejores vueltas (por SACE), descartando las <b>${last.length - n}</b> peores.`);
+    html += mediasBloque(mejores, `Media de las <b>${n}</b> mejores vueltas (por SACE), descartando las <b>${last.length - n}</b> peores.`, 'rojo');
   }
   if(last.length < 20) html += `<p class="note">Aún no hay 20 vueltas SACE: la media es de las ${last.length} que hay.</p>`;
   el.innerHTML = html;
@@ -612,7 +614,7 @@ function ghError(status){
   if(status === 403 || status === 404) return 'sin acceso: revisa el nombre del repositorio y que el token tenga Contents: Read and write';
   return 'GitHub respondió ' + status;
 }
-const APP_VERSION = '15-nov-2026 · v23';
+const APP_VERSION = '17-nov-2026 23:54 · v24';
 const hashStr = t => { let h = 5381; for(let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 const rKey = r => [r.fecha, r.torneo.toLowerCase(), r.neto, r.bruto].join('|');
 const hora = () => new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
@@ -740,7 +742,11 @@ function ghInit(){
   });
 }
 
-document.getElementById('quitarN').addEventListener('input', renderMedias);
+document.getElementById('mediasView').addEventListener('input', e => {
+  if(e.target.id !== 'quitarN') return;
+  const pos = e.target.selectionStart; renderMedias();
+  const i = document.getElementById('quitarN'); i.focus(); try{ i.setSelectionRange(pos, pos); }catch(_){}
+});
 document.querySelector('.tabs').addEventListener('click', e => {
   const t = e.target.dataset && e.target.dataset.tab; if(!t) return;
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
