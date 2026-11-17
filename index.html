@@ -64,8 +64,8 @@
   #ghSaveStatus.pending{color:var(--warn);font-weight:bold}
   .pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;font-size:.9rem;color:var(--muted)}
   .pager button:disabled{opacity:.4;cursor:default}
-  .tabs{display:flex;gap:8px;margin-bottom:16px}
-  .tabs button{flex:1;padding-inline:6px;background:transparent;color:var(--green)}
+  .tabs{display:flex;gap:6px;margin-bottom:16px}
+  .tabs button{flex:1;min-width:0;font-size:.88rem;padding-inline:4px;background:transparent;color:var(--green)}
   .tabs button[aria-selected="true"]{background:var(--green);color:#fff}
   @media (prefers-color-scheme: dark){ .tabs button[aria-selected="true"]{color:#10201a} }
   .tag{display:inline-block;border-radius:4px;padding:1px 7px;font-size:.78rem;margin-right:4px}
@@ -81,7 +81,7 @@
 </head>
 <body>
 <h1>Handicap de golf</h1>
-<p class="sub">HCP Neto y SACE. <span id="ver" style="white-space:nowrap"></span></p>
+<p class="sub">Registra tus vueltas. HCP Bruto y SACE se calculan solos. <span id="ver" style="white-space:nowrap"></span></p>
 
 
 <section class="card" aria-live="polite">
@@ -95,6 +95,7 @@
   <button type="button" role="tab" data-tab="vueltas" aria-selected="true">Vueltas</button>
   <button type="button" role="tab" data-tab="hcp" aria-selected="false">HCP</button>
   <button type="button" role="tab" data-tab="sace" aria-selected="false">SACE</button>
+  <button type="button" role="tab" data-tab="medias" aria-selected="false">Medias</button>
   <button type="button" role="tab" data-tab="graficas" aria-selected="false">Gráficas</button>
 </div>
 
@@ -192,6 +193,8 @@
 </div>
 
 <div id="v-sace" hidden><section class="card"><h2>SACE: últimas 20 vueltas</h2><div id="saceView"></div></section></div>
+
+<div id="v-medias" hidden><section class="card"><h2>Medias: últimas 20 vueltas SACE</h2><div id="mediasView"></div></section></div>
 
 <script>
 /* ============ FÓRMULAS (iguales a las de tu Excel) ============
@@ -299,6 +302,20 @@ function renderView(key, id, colName, dec, strokes, strokesLabel){
     <p class="note">Orden de más nuevo a más antiguo: la 1 es la más reciente y la última es la que sale. Las sombreadas son las que hacen la media.</p>`;
 }
 
+/* ---- Medias de las últimas 20 vueltas SACE: golpes Bruto, Valor Campo y Slope ---- */
+function renderMedias(){
+  const el = document.getElementById('mediasView');
+  const last = [...rounds].sort((a,b) => a.fecha.localeCompare(b.fecha)).filter(r => r.sace != null).slice(-20);
+  if(!last.length){ el.innerHTML = '<p class="empty">Aún no hay vueltas SACE.</p>'; return; }
+  const avg = k => { const v = last.map(r => r[k]).filter(Number.isFinite); return v.length ? v.reduce((t,x) => t + x, 0) / v.length : null; };
+  const b = avg('bruto'), c = avg('cr'), s = avg('slope');
+  const item = (lab, v) => `<div><div class="txt">${lab}</div><span class="num">${v == null ? '–' : f1(v)}</span></div>`;
+  el.innerHTML = `<div class="box">Media de las <b>${last.length}</b> últimas vueltas SACE, del ${fmtDate(last[0].fecha)} al ${fmtDate(last[last.length-1].fecha)}.</div>
+    <div class="index" style="gap:24px;margin:16px 0">${item('Golpes Bruto', b)}${item('Valor Campo', c)}${item('Slope', s)}</div>
+    ${b != null && c != null ? `<div class="box">Bruto menos Valor Campo: <b>${f1(b - c)}</b> golpes por vuelta.</div>` : ''}
+    ${last.length < 20 ? `<p class="note">Aún no hay 20 vueltas SACE: la media es de las ${last.length} que hay.</p>` : ''}`;
+}
+
 /* ---- Gráficas: evolución del índice en las últimas 20 vueltas ---- */
 function renderChart(key, id, label, dec){
   const el = document.getElementById(id);
@@ -338,7 +355,7 @@ function render(){
   const N = calcIndex(sorted, 'hcpNeto'), S = calcIndex(sorted, 'sace');
   showIdx(N, 'idxN', 'idxNTxt'); showIdx(S, 'idxS', 'idxSTxt', 3);
   renderChart('hcpNeto', 'hcpChart', 'HCP', 1); renderChart('sace', 'saceChart', 'HCP SACE', 3);
-  renderView('hcpNeto', 'hcpView', 'HCP Neto', 1, 'neto', 'Golpes Neto'); renderView('sace', 'saceView', 'SACE', 3, 'bruto', 'Golpes Bruto');
+  renderView('hcpNeto', 'hcpView', 'HCP Neto', 1, 'neto', 'Golpes Neto'); renderView('sace', 'saceView', 'SACE', 3, 'bruto', 'Golpes Bruto'); renderMedias();
   const tb = document.getElementById('rows');
   const all = [...sorted].reverse();   // más recientes primero
   const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
@@ -709,7 +726,7 @@ function ghInit(){
 document.querySelector('.tabs').addEventListener('click', e => {
   const t = e.target.dataset && e.target.dataset.tab; if(!t) return;
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
-  ['vueltas','hcp','sace','graficas'].forEach(n => { document.getElementById('v-' + n).hidden = n !== t; });
+  ['vueltas','hcp','sace','medias','graficas'].forEach(n => { document.getElementById('v-' + n).hidden = n !== t; });
 });
 
 (function(){   // paginación: de 30 en 30
